@@ -1,0 +1,2574 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AEM vs TESS Comparison Tool</title>
+  <!-- SheetJS / XLSX for Excel reading & CSV exporting -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- PapaParse for robust CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #f8fafc;
+      --card-bg: #ffffff;
+      --border-color: #e2e8f0;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      /* Minimal, subtle comparison colors */
+      --match-bg: #f0fdf4;
+      --match-text: #166534;
+      --match-badge: #bbf7d0;
+      --mismatch-bg: #fef2f2;
+      --mismatch-text: #991b1b;
+      --mismatch-badge: #fecaca;
+      --missing-bg: #fffbeb;
+      --missing-text: #92400e;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    p.subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Upload Section */
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .upload-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .upload-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .upload-card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-base {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .badge-comp {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .file-input-wrapper {
+      margin-top: 10px;
+    }
+
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .file-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .file-list {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: #334155;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+
+    .file-list li {
+      list-style: none;
+      padding: 2px 0;
+    }
+
+    /* Actions and Toolbar */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 18px;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .btn:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: #f1f5f9;
+      color: #334155;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background-color: #e2e8f0;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Summary Stats */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      font-size: 0.8125rem;
+      align-items: center;
+    }
+
+    .stat-pill {
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
+
+    .pill-all {
+      background: #f1f5f9;
+      color: #334155;
+    }
+
+    .pill-match {
+      background: var(--match-bg);
+      color: var(--match-text);
+      border: 1px solid var(--match-badge);
+    }
+
+    .pill-mismatch {
+      background: var(--mismatch-bg);
+      color: var(--mismatch-text);
+      border: 1px solid var(--mismatch-badge);
+    }
+
+    /* Filter Controls */
+    .filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    select,
+    input[type="text"] {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.8125rem;
+      background: #ffffff;
+      color: var(--text-main);
+      outline: none;
+    }
+
+    select:focus,
+    input[type="text"]:focus {
+      border-color: var(--primary);
+    }
+
+    /* Table styles */
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+    }
+
+    tr:hover td {
+      background-color: #fbfcfe;
+    }
+
+    /* Minimal cell styling */
+    .cell-match {
+      background-color: var(--match-bg);
+      color: var(--match-text);
+      border-radius: 4px;
+      padding: 2px 6px;
+      display: inline-block;
+    }
+
+    .cell-mismatch {
+      background-color: var(--mismatch-bg);
+      color: var(--mismatch-text);
+      border-radius: 4px;
+      padding: 2px 6px;
+      display: block;
+    }
+
+    .diff-val {
+      font-size: 0.75rem;
+      display: block;
+      margin-top: 2px;
+      color: #7f1d1d;
+    }
+
+    .diff-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 600;
+      opacity: 0.7;
+      margin-right: 2px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .status-match {
+      background: var(--match-badge);
+      color: var(--match-text);
+    }
+
+    .status-mismatch {
+      background: var(--mismatch-badge);
+      color: var(--mismatch-text);
+    }
+
+    .status-missing {
+      background: #fef3c7;
+      color: var(--missing-text);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-box {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .legend-box.green {
+      background-color: var(--match-badge);
+    }
+
+    .legend-box.red {
+      background-color: var(--mismatch-badge);
+    }
+
+
+
+    /* Resizable Column Headers & Filter Popups */
+    th.resizable-th {
+      position: relative;
+      user-select: none;
+    }
+
+    .col-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 6px;
+      cursor: col-resize;
+      user-select: none;
+      height: 100%;
+      z-index: 10;
+    }
+
+    .col-resizer:hover,
+    .col-resizer.resizing {
+      background-color: var(--primary);
+    }
+
+    .th-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .col-filter-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: color 0.15s, background 0.15s;
+    }
+
+    .col-filter-btn:hover,
+    .col-filter-btn.active {
+      color: var(--primary);
+      background: #e0f2fe;
+    }
+
+    .col-filter-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+      border-radius: 6px;
+      padding: 8px;
+      z-index: 1000;
+      min-width: 180px;
+      max-width: 260px;
+      display: none;
+      text-align: left;
+      font-weight: normal;
+    }
+
+    .col-filter-dropdown input[type="text"] {
+      width: 100%;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      margin-bottom: 6px;
+      outline: none;
+    }
+
+    .col-filter-dropdown input[type="text"]:focus {
+      border-color: var(--primary);
+    }
+
+    .col-filter-dropdown .filter-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+
+    .col-filter-dropdown .filter-btn {
+      font-size: 0.7rem;
+      padding: 3px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: #f8fafc;
+    }
+
+    .col-filter-dropdown .filter-btn-clear {
+      color: #dc2626;
+    }
+
+    .col-filter-dropdown .filter-btn-clear:hover {
+      background: #fee2e2;
+    }
+
+    /* Checkbox & strike-through styling */
+    tr.row-struck {
+      opacity: 0.55;
+      background-color: #f1f5f9 !important;
+    }
+
+    tr.row-struck td,
+    tr.row-struck td span,
+    tr.row-struck td div,
+    tr.row-struck td strong,
+    tr.row-struck td b,
+    tr.row-struck td code,
+    tr.row-struck .cell-match,
+    tr.row-struck .cell-mismatch,
+    tr.row-struck .diff-val,
+    tr.row-struck .status-badge {
+      text-decoration: line-through !important;
+      color: #64748b !important;
+    }
+
+    tr.row-struck td:first-child,
+    tr.row-struck td:first-child * {
+      text-decoration: none !important;
+      /* keep checkbox normal */
+    }
+
+    .row-check {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    /* ================= APP LAYOUT ================= */
+    html,
+    body {
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* Vertical Collapsible Navbar */
+    .app-sidebar {
+      width: 290px;
+      min-width: 64px;
+      background: #ffffff;
+      border-right: 1px solid #d0d7de;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      user-select: none;
+      z-index: 100;
+      box-shadow: 2px 0 6px rgba(0, 0, 0, 0.03);
+    }
+
+    .app-sidebar.collapsed {
+      width: 64px;
+    }
+
+    .sidebar-header {
+      height: 52px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #107c41;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .app-sidebar.collapsed .sidebar-brand span {
+      display: none;
+    }
+
+    .toggle-sidebar-btn {
+      background: none;
+      border: 1px solid transparent;
+      cursor: pointer;
+      color: #475569;
+      font-size: 1.1rem;
+      padding: 6px 8px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .toggle-sidebar-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .app-sidebar.collapsed .sidebar-content {
+      padding: 12px 8px;
+      align-items: center;
+    }
+
+    .sidebar-section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 6px;
+      white-space: nowrap;
+    }
+
+    .app-sidebar.collapsed .sidebar-section-title {
+      display: none;
+    }
+
+    .sidebar-card {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 12px;
+      transition: all 0.2s;
+    }
+
+    .sidebar-card:hover {
+      border-color: #107c41;
+      background: #f0fdf4;
+    }
+
+    .app-sidebar.collapsed .sidebar-card {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border-style: solid;
+      border-color: #e2e8f0;
+      cursor: pointer;
+    }
+
+    .sidebar-card h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .app-sidebar.collapsed .sidebar-card h3,
+    .app-sidebar.collapsed .sidebar-card p,
+    .app-sidebar.collapsed .sidebar-card .file-input-wrapper,
+    .app-sidebar.collapsed .sidebar-card ul,
+    .app-sidebar.collapsed .sidebar-card div.file-hint {
+      display: none !important;
+    }
+
+    .sidebar-icon-indicator {
+      display: none;
+      font-size: 1.25rem;
+      color: #107c41;
+    }
+
+    .app-sidebar.collapsed .sidebar-icon-indicator {
+      display: block;
+    }
+
+    /* Main Area */
+    .app-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+
+    .app-body-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+
+    /* Bottom Bar (MS Excel style) */
+    .excel-bottom-bar {
+      height: 36px;
+      background: #f3f2f1;
+      border-top: 1px solid #d0d7de;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 12px;
+      user-select: none;
+      box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.03);
+    }
+
+    .excel-tab-list {
+      display: flex;
+      align-items: flex-end;
+      height: 100%;
+      gap: 2px;
+    }
+
+    .excel-nav-btn {
+      background: none;
+      border: none;
+      padding: 3px 6px;
+      border-radius: 3px;
+      color: #64748b;
+      cursor: pointer;
+    }
+
+    .excel-nav-btn:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .excel-sheet-tab {
+      background: #e2e8f0;
+      border: 1px solid #cbd5e1;
+      border-bottom: none;
+      padding: 5px 16px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #475569;
+      border-radius: 4px 4px 0 0;
+      height: 29px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+
+    .excel-sheet-tab:hover {
+      background: #f1f5f9;
+    }
+
+    .excel-sheet-tab.active {
+      background: #ffffff;
+      color: #107c41;
+      font-weight: 600;
+      border-top: 2px solid #107c41;
+      border-bottom: none;
+    }
+
+    .excel-add-sheet {
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: none;
+      border-radius: 50%;
+      color: #64748b;
+      cursor: pointer;
+      margin-left: 4px;
+      margin-bottom: 2px;
+    }
+
+    .excel-add-sheet:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .excel-status-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: #64748b;
+      font-size: 11px;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body>
+
+  <!-- Vertical Collapsible Navbar for File Uploads -->
+  <aside class="app-sidebar" id="appSidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <i class="fa-solid fa-file-excel"></i>
+        <span>File Uploads</span>
+      </div>
+      <button class="toggle-sidebar-btn" id="toggleSidebarBtn" title="Toggle Sidebar">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+    </div>
+
+    <div class="sidebar-content">
+      <div class="sidebar-section-title">Upload Sources</div>
+
+      <!-- AEM Upload Card in Sidebar -->
+      <div class="sidebar-card" id="aemDropCard" title="AEM Daily CSVs (Base)">
+        <i class="fa-solid fa-file-csv sidebar-icon-indicator" title="Upload AEM CSVs"></i>
+        <h3><i class="fa-solid fa-file-csv" style="color: #0284c7;"></i> 1. AEM Files <span
+            class="badge-base">Base</span></h3>
+        <p class="file-hint">Select or drag daily CSV files (day-1, day-2...)</p>
+        <div class="file-input-wrapper">
+          <input type="file" id="aemFiles" multiple accept=".csv">
+        </div>
+        <ul class="file-list" id="aemFileList"></ul>
+      </div>
+
+      <!-- TESS Upload Card in Sidebar -->
+      <div class="sidebar-card" id="tessDropCard" title="TESS Master Excel (Target)">
+        <i class="fa-solid fa-file-excel sidebar-icon-indicator" title="Upload TESS Excel"></i>
+        <h3><i class="fa-solid fa-file-excel" style="color: #16a34a;"></i> 2. TESS Master <span
+            class="badge-comp">Target</span></h3>
+        <p class="file-hint">Select <code>.xlsx</code> (Reads sheet: <b>Activities</b>)</p>
+        <div class="file-input-wrapper">
+          <input type="file" id="tessFile" accept=".xlsx, .xls">
+        </div>
+        <div class="file-hint" id="tessFileInfo" style="margin-top: 6px;"></div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="app-main">
+    <div class="app-body-scroll">
+      <div class="container tab-view active-view" id="view-comparison">
+        <header>
+          <h1>AEM & TESS Activity Comparison</h1>
+          <p class="subtitle">Base comparison: AEM daily CSV files matched against TESS master Excel (Activities sheet)
+          </p>
+        </header>
+
+        <!-- Toolbar & Filters -->
+        <div class="toolbar">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn" id="compareBtn" disabled onclick="executeComparison()">Compare Records</button>
+            <button class="btn btn-secondary" id="exportBtn" disabled onclick="downloadResults()">Download Report
+              (CSV)</button>
+          </div>
+
+          <div class="filter-group">
+            <select id="filterStatus" onchange="applyFilters()">
+              <option value="ALL">Status: All Records</option>
+              <option value="MISMATCH_OR_MISSING">Status: Mismatches &amp; Missing</option>
+              <option value="MISMATCH">Status: Mismatches Only</option>
+              <option value="MATCH">Status: Clean Matches Only</option>
+              <option value="MISSING">Status: Missing in TESS Only</option>
+            </select>
+
+            <select id="filterDay" onchange="applyFilters()">
+              <option value="ALL">Day: All</option>
+            </select>
+
+            <input type="text" id="searchInput" placeholder="Search Title, Venue..." oninput="applyFilters()">
+          </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div class="stats-bar" id="statsBar">
+            <span class="stat-pill pill-all">Total: <b id="statTotal">0</b></span>
+            <span class="stat-pill pill-match">Matches: <b id="statMatch">0</b></span>
+            <span class="stat-pill pill-mismatch">Mismatches / Missing: <b id="statMismatch">0</b></span>
+          </div>
+
+          <div class="legend">
+            <div class="legend-item">
+              <div class="legend-box green"></div> Match
+            </div>
+            <div class="legend-item">
+              <div class="legend-box red"></div> Mismatch (AEM base vs TESS)
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Table -->
+        <div class="table-container">
+          <table id="resultsTable">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;"><input type="checkbox" id="checkAllBoxes" class="row-check"
+                    title="Toggle all"></th>
+                <th data-col="day">Day</th>
+                <th data-col="status">Status</th>
+                <th data-col="title">Headline / Title</th>
+                <th data-col="startTime">Start Time</th>
+                <th data-col="endTime">End Time</th>
+                <th data-col="venue">Venue</th>
+                <th data-col="category">AEM Category</th>
+                <th data-col="tessAemId">TESS AEM ID</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr>
+                <td colspan="9" class="empty-state">Upload both AEM and TESS files and click "Compare Records" to
+                  inspect
+                  matches.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <!-- ======================================================================= -->
+      <!-- DUAL SEARCH TAB VIEW (START)                                            -->
+      <!-- When 'CSV Dual Search' is clicked, this container is displayed.          -->
+      <!-- ======================================================================= -->
+      <!-- DUAL SEARCH TAB VIEW (START)                                            -->
+      <!-- When 'CSV Dual Search' is clicked, this container is displayed.          -->
+      <!-- ======================================================================= -->
+            <div class="container tab-view" id="view-dualsearch" style="display: none; padding: 0; margin: 0; max-width: 100%; width: 100%;">
+        <div class="w-full bg-gray-50 py-4 px-4 font-sans text-gray-800">
+
+
+    <div class="w-full bg-white rounded-xl shadow-md p-6">
+    <div class="fixed top-4 right-4 text-right z-50">
+        <p class="text-sm font-bold text-gray-700">Glen Rajadurai</p>
+        <a href="mailto:glenrajadurai24@gmail.com" class="text-xs text-indigo-600 hover:underline">glenrajadurai24@gmail.com</a>
+    </div>
+        <h1 class="text-3xl font-bold text-gray-900 mb-6 text-center">Excel & CSV Dual Live Search</h1>
+        
+        <div class="max-w-xl mx-auto mb-8">
+            <label class="block text-sm font-semibold text-gray-700 mb-2 text-center">Global Live Search (Searches both files simultaneously)</label>
+            <div class="relative flex items-center">
+                <input type="text" id="dsSearchInput" placeholder="Upload files to start searching..." disabled
+                       class="w-full border-2 border-gray-300 rounded-lg pl-10 pr-10 py-2.5 bg-gray-100 cursor-not-allowed focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all text-center font-medium shadow-sm">
+                <svg class="w-5 h-5 text-gray-400 absolute left-3 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <button id="clearSearchBtn" type="button" class="hidden absolute right-3 text-gray-400 hover:text-gray-600 focus:outline-none p-1 rounded-full hover:bg-gray-100" title="Clear search">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex items-center justify-center gap-4 mt-2 text-xs text-gray-500">
+                <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" id="searchAllColsCheckbox" class="rounded text-indigo-600 focus:ring-indigo-500">
+                    <span>Search all columns (instead of targeted columns)</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            
+            <div class="border border-gray-200 rounded-xl p-5 bg-gray-50/50">
+                <h2 class="text-lg font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">File 1: Original Search (Column 1)</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Upload File 1 (.xls, .xlsx, .csv)</label>
+                    <input type="file" id="fileInput" accept=".xls,.xlsx,.csv" 
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border border-gray-300 rounded-md p-1 bg-white">
+                </div>
+
+                <div class="flex justify-between items-center mb-4 text-sm font-medium">
+                    <span id="statusMessage" class="text-gray-500">Please upload File 1.</span>
+                    <span id="matchCount" class="text-indigo-600 hidden">Matches found: 0</span>
+                </div>
+
+                <div class="overflow-x-auto border border-gray-200 rounded-lg hidden bg-white" id="tableContainer">
+                    <table class="w-full table-fixed divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr id="tableHeader"></tr>
+                        </thead>
+                        <tbody id="dsTableBody" class="bg-white divide-y divide-gray-200 text-xs md:text-sm"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="border border-gray-200 rounded-xl p-5 bg-gray-50/50">
+                <h2 class="text-lg font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200">File 2: Targeted Search (Columns 3 & 4)</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Upload File 2 (.xls, .xlsx, .csv)</label>
+                    <input type="file" id="fileInput2" accept=".xls,.xlsx,.csv" 
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 border border-gray-300 rounded-md p-1 bg-white">
+                </div>
+
+                <div id="tabSelectionContainer" class="mb-4 hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-sm font-semibold text-gray-700">Select Tabs to Search:</label>
+                        <div class="flex gap-2 text-xs">
+                            <button type="button" id="selectAllTabsBtn" class="text-indigo-600 hover:text-indigo-800 font-medium">Select All</button>
+                            <span class="text-gray-300">|</span>
+                            <button type="button" id="deselectAllTabsBtn" class="text-gray-500 hover:text-gray-700 font-medium">Deselect All</button>
+                        </div>
+                    </div>
+                    <div id="tabCheckboxes" class="flex flex-wrap gap-3 p-3 bg-white border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-4 text-sm font-medium">
+                    <span id="statusMessage2" class="text-gray-500">Please upload File 2.</span>
+                </div>
+
+                <div id="file2ResultsContainer" class="space-y-6 hidden">
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+(function() {
+
+        let fileData1 = []; 
+        let fileWorkbook2 = null; 
+        let searchTimeout = null;
+        let cachedSheets2 = {};
+
+        const searchInput = document.getElementById('dsSearchInput');
+        const fileInput = document.getElementById('fileInput');
+        const statusMessage = document.getElementById('statusMessage');
+        const matchCount = document.getElementById('matchCount');
+        const tableContainer = document.getElementById('tableContainer');
+        const tableHeader = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('dsTableBody');
+
+        const fileInput2 = document.getElementById('fileInput2');
+        const statusMessage2 = document.getElementById('statusMessage2');
+        const tabSelectionContainer = document.getElementById('tabSelectionContainer');
+        const tabCheckboxes = document.getElementById('tabCheckboxes');
+        const file2ResultsContainer = document.getElementById('file2ResultsContainer');
+
+        function updateSearchInputStatus() {
+            if (fileData1.length > 0 || fileWorkbook2) {
+                searchInput.disabled = false;
+                searchInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
+                searchInput.placeholder = "Type to search all criteria...";
+            }
+        }
+
+        function processParsedData1(rows, fileName) {
+            // Filter out trailing completely empty rows
+            fileData1 = rows.filter(r => r && Array.isArray(r) && r.some(c => c !== null && c !== undefined && String(c).trim() !== ""));
+
+            if (!fileData1 || fileData1.length === 0) {
+                statusMessage.textContent = "The file appears to be empty.";
+                return;
+            }
+
+            statusMessage.textContent = `Loaded: ${fileName}`;
+            tableContainer.classList.remove('hidden');
+            
+            updateSearchInputStatus();
+            renderHeaders1();
+            runGlobalSearch();
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusMessage.textContent = "Reading file...";
+            const fileName = file.name || "";
+            const isCsv = fileName.toLowerCase().endsWith('.csv');
+
+            if (isCsv && typeof Papa !== 'undefined') {
+                Papa.parse(file, {
+                    header: false,
+                    skipEmptyLines: 'greedy',
+                    complete: function(results) {
+                        if (results.data && results.data.length > 0) {
+                            processParsedData1(results.data, fileName);
+                        } else {
+                            // Fallback to array buffer parser
+                            readWithSheetJS(file);
+                        }
+                    },
+                    error: function(err) {
+                        console.warn("PapaParse error, trying SheetJS:", err);
+                        readWithSheetJS(file);
+                    }
+                });
+            } else {
+                readWithSheetJS(file);
+            }
+
+            function readWithSheetJS(f) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: true, raw: false });
+                        
+                        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+                            statusMessage.textContent = "The file appears to be empty.";
+                            return;
+                        }
+
+                        // Try first non-empty sheet
+                        let rows = [];
+                        for (let s of workbook.SheetNames) {
+                            const ws = workbook.Sheets[s];
+                            const parsed = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+                            if (parsed && parsed.length > 0) {
+                                rows = parsed;
+                                break;
+                            }
+                        }
+
+                        processParsedData1(rows, fileName);
+                    } catch (error) {
+                        statusMessage.textContent = "Error parsing file.";
+                        console.error(error);
+                    }
+                };
+                reader.readAsArrayBuffer(f);
+            }
+        });
+
+        function renderHeaders1() {
+            tableHeader.innerHTML = '';
+            const headers = fileData1[0] || [];
+            const colCount = Math.min(headers.length, 5);
+
+            for (let i = 0; i < colCount; i++) {
+                const th = document.createElement('th');
+                const widthClass = i === 4 ? "max-w-[220px]" : "max-w-[150px]";
+                th.className = `px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider ${widthClass} break-words`;
+                th.textContent = headers[i] || `Column ${i + 1}`;
+                tableHeader.appendChild(th);
+            }
+        }
+
+        function displayResults1(rows) {
+            const fragment = document.createDocumentFragment();
+            matchCount.classList.remove('hidden');
+            matchCount.textContent = `Matches found: ${rows.length}`;
+
+            if (rows.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-gray-500">No matching data found.</td></tr>`;
+                return;
+            }
+
+            const colCount = Math.min(fileData1[0].length, 5);
+
+            rows.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                
+                for (let i = 0; i < colCount; i++) {
+                    const td = document.createElement('td');
+                    const widthClass = i === 4 ? "max-w-[220px]" : "max-w-[150px]";
+                    td.className = `px-4 py-3 text-gray-700 whitespace-normal break-all normal-case ${widthClass} align-middle`;
+                    
+                    const cellValue = row[i] !== undefined ? String(row[i]).trim() : "";
+
+                    if (i === 3 && cellValue !== "") {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = "block space-y-1.5 w-full";
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.className = "block text-xs md:text-sm text-gray-800 break-words whitespace-normal leading-relaxed";
+                        textSpan.textContent = cellValue;
+                        
+                        const copyBtn = document.createElement('button');
+                        copyBtn.className = "inline-flex items-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-200 transition shadow-sm";
+                        copyBtn.textContent = "Copy";
+                        copyBtn.onclick = () => executeCopy(cellValue, copyBtn);
+                        
+                        wrapper.appendChild(textSpan);
+                        wrapper.appendChild(copyBtn);
+                        td.appendChild(wrapper);
+                    } else if (i === 4 && cellValue !== "") {
+                        const cellContainer = document.createElement('div');
+                        cellContainer.className = "flex flex-col gap-2 w-full";
+                        const items = cellValue.split(',').map(item => item.trim()).filter(item => item !== "");
+                        const spaceSeparatedText = items.join(' ');
+
+                        const copyAllBtn = document.createElement('button');
+                        copyAllBtn.className = "w-full text-center bg-slate-800 hover:bg-slate-900 text-white text-[9px] uppercase tracking-wider font-extrabold py-1 px-2 rounded transition shadow-sm";
+                        copyAllBtn.textContent = "Copy All (Spaced)";
+                        copyAllBtn.onclick = () => executeCopy(spaceSeparatedText, copyAllBtn);
+                        cellContainer.appendChild(copyAllBtn);
+
+                        const itemsWrapper = document.createElement('div');
+                        itemsWrapper.className = "flex flex-wrap gap-1.5 w-full";
+
+                        items.forEach(item => {
+                            const chip = document.createElement('div');
+                            chip.className = "inline-flex items-center bg-gray-100 border border-gray-200 rounded pl-2 pr-1 py-0.5 max-w-full text-[11px] font-medium break-all";
+                            const itemText = document.createElement('span');
+                            itemText.className = "truncate mr-1.5 text-gray-800";
+                            itemText.textContent = item;
+                            const itemCopyBtn = document.createElement('button');
+                            itemCopyBtn.className = "bg-white hover:bg-indigo-50 text-indigo-600 border border-gray-300 rounded px-1 py-0.5 text-[9px] font-bold shadow-sm transition shrink-0";
+                            itemCopyBtn.textContent = "Copy";
+                            itemCopyBtn.onclick = () => executeCopy(item, itemCopyBtn);
+
+                            chip.appendChild(itemText);
+                            chip.appendChild(itemCopyBtn);
+                            itemsWrapper.appendChild(chip);
+                        });
+                        cellContainer.appendChild(itemsWrapper);
+                        td.appendChild(cellContainer);
+                    } else {
+                        td.className += " break-words";
+                        td.textContent = cellValue;
+                    }
+                    tr.appendChild(td);
+                }
+                fragment.appendChild(tr);
+            });
+
+            tableBody.innerHTML = '';
+            tableBody.appendChild(fragment);
+        }
+
+        fileInput2.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            statusMessage2.textContent = "Reading file setup...";
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    fileWorkbook2 = XLSX.read(data, { type: 'array', cellDates: true, raw: false });
+                    cachedSheets2 = {};
+                    statusMessage2.textContent = `Loaded: ${file.name}`;
+                    
+                    tabCheckboxes.innerHTML = '';
+                    fileWorkbook2.SheetNames.forEach((sheetName, index) => {
+                        const label = document.createElement('label');
+                        label.className = "inline-flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-md px-3 py-1.5 cursor-pointer text-xs font-medium select-none";
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.value = sheetName;
+                        checkbox.className = "rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4";
+                        if (index === 0) checkbox.checked = true; 
+
+                        checkbox.addEventListener('change', runGlobalSearch);
+
+                        const text = document.createElement('span');
+                        text.textContent = sheetName;
+
+                        label.appendChild(checkbox);
+                        label.appendChild(text);
+                        tabCheckboxes.appendChild(label);
+                    });
+
+                    tabSelectionContainer.classList.remove('hidden');
+                    file2ResultsContainer.classList.remove('hidden');
+                    
+                    updateSearchInputStatus();
+                    runGlobalSearch();
+                } catch (error) {
+                    statusMessage2.textContent = "Error parsing File 2.";
+                    console.error(error);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+                const clearSearchBtn = document.getElementById('clearSearchBtn');
+        const searchAllColsCheckbox = document.getElementById('searchAllColsCheckbox');
+        const selectAllTabsBtn = document.getElementById('selectAllTabsBtn');
+        const deselectAllTabsBtn = document.getElementById('deselectAllTabsBtn');
+
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                clearSearchBtn.classList.add('hidden');
+                searchInput.focus();
+                runGlobalSearch();
+            });
+        }
+
+        if (searchAllColsCheckbox) {
+            searchAllColsCheckbox.addEventListener('change', runGlobalSearch);
+        }
+
+        if (selectAllTabsBtn) {
+            selectAllTabsBtn.addEventListener('click', () => {
+                tabCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+                runGlobalSearch();
+            });
+        }
+
+        if (deselectAllTabsBtn) {
+            deselectAllTabsBtn.addEventListener('click', () => {
+                tabCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+                runGlobalSearch();
+            });
+        }
+
+        // Live search: input event triggers immediate/debounced search
+        searchInput.addEventListener('input', () => {
+            if (clearSearchBtn) {
+                if (searchInput.value.trim().length > 0) {
+                    clearSearchBtn.classList.remove('hidden');
+                } else {
+                    clearSearchBtn.classList.add('hidden');
+                }
+            }
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(runGlobalSearch, 80);
+        });
+
+        // Also trigger immediately on Enter or Escape
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                searchInput.value = '';
+                if (clearSearchBtn) clearSearchBtn.classList.add('hidden');
+                runGlobalSearch();
+            } else if (e.key === 'Enter') {
+                clearTimeout(searchTimeout);
+                runGlobalSearch();
+            }
+        });
+
+        // Normalizer helper for robust multi-keyword matching
+        function cleanString(val) {
+            if (val === undefined || val === null) return "";
+            return String(val).toLowerCase().trim().replace(/\s+/g, ' ');
+        }
+
+        function rowMatchesTokens(row, tokens, searchAll, targetIndices) {
+            if (!tokens || tokens.length === 0) return true;
+            if (!row || !Array.isArray(row)) return false;
+
+            let rowText = "";
+            if (searchAll) {
+                rowText = row.map(cell => cleanString(cell)).join(" ");
+            } else {
+                rowText = targetIndices.map(idx => cleanString(row[idx])).join(" ");
+            }
+
+            // Every typed token must match somewhere in the row text (AND matching)
+            return tokens.every(token => rowText.includes(token));
+        }
+
+        function runGlobalSearch() {
+            const rawTerm = searchInput.value.toLowerCase().trim();
+            // Split search query into tokens so multiple words find matches regardless of order
+            const tokens = rawTerm ? rawTerm.split(/\s+/).filter(Boolean) : [];
+            const searchAll = searchAllColsCheckbox ? searchAllColsCheckbox.checked : false;
+
+            // 1. Search and render File 1
+            if (fileData1 && fileData1.length > 0) {
+                const dataRows1 = fileData1.slice(1);
+                if (tokens.length === 0) {
+                    displayResults1(dataRows1);
+                } else {
+                    // Target: Column 1 (index 0) by default, or all columns if checked
+                    const filteredRows1 = dataRows1.filter(row => rowMatchesTokens(row, tokens, searchAll, [0]));
+                    displayResults1(filteredRows1);
+                }
+            }
+
+            // 2. Search and render File 2
+            if (fileWorkbook2) {
+                const checkedBoxes = tabCheckboxes.querySelectorAll('input[type="checkbox"]:checked');
+                
+                if (checkedBoxes.length === 0) {
+                    file2ResultsContainer.innerHTML = `<div class="text-sm text-center text-gray-400 py-4 bg-white border border-gray-200 rounded-lg">Select at least one tab to view matches.</div>`;
+                    return;
+                }
+
+                const fragmentContainer = document.createDocumentFragment();
+
+                checkedBoxes.forEach(box => {
+                    const sheetName = box.value;
+                    
+                    if (!cachedSheets2[sheetName]) {
+                        const worksheet = fileWorkbook2.Sheets[sheetName];
+                        cachedSheets2[sheetName] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                    }
+                    
+                    const sheetData = cachedSheets2[sheetName];
+                    if (!sheetData || sheetData.length === 0) return;
+
+                    const headers = sheetData[0] || [];
+                    const dataRows2 = sheetData.slice(1);
+
+                    let matchedRows2 = dataRows2;
+                    if (tokens.length > 0) {
+                        // Target: Columns 3 & 4 (indices 2 and 3) by default, or all columns if checked
+                        matchedRows2 = dataRows2.filter(row => rowMatchesTokens(row, tokens, searchAll, [2, 3]));
+                    }
+
+                    renderFile2TabBlock(sheetName, headers, matchedRows2, fragmentContainer);
+                });
+
+                file2ResultsContainer.innerHTML = '';
+                file2ResultsContainer.appendChild(fragmentContainer);
+            }
+        }
+        
+        function renderFile2TabBlock(sheetName, headers, rows, parentFragment) {
+            const blockContainer = document.createElement('div');
+            blockContainer.className = "bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm";
+
+            const headerBlock = document.createElement('div');
+            headerBlock.className = "bg-emerald-700 text-white px-4 py-2 text-sm font-bold flex justify-between items-center";
+            headerBlock.innerHTML = `<span>Tab Area: ${sheetName}</span> <span class="bg-emerald-900 text-emerald-100 text-xs px-2 py-0.5 rounded-full">Matches: ${rows.length}</span>`;
+            blockContainer.appendChild(headerBlock);
+
+            if (rows.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.className = "p-4 text-sm text-gray-500 text-center";
+                emptyMsg.textContent = "No keyword match discovered in Columns 3 or 4 within this tab.";
+                blockContainer.appendChild(emptyMsg);
+                parentFragment.appendChild(blockContainer);
+                return;
+            }
+
+            const tableWrapper = document.createElement('div');
+            tableWrapper.className = "overflow-x-auto";
+            
+            const table = document.createElement('table');
+            table.className = "w-full table-fixed divide-y divide-gray-200 text-xs text-left";
+
+            const thead = document.createElement('thead');
+            thead.className = "bg-gray-50";
+            const trHead = document.createElement('tr');
+            
+            const targetColCount = Math.min(headers.length, 4);
+            for (let i = 0; i < targetColCount; i++) {
+                const th = document.createElement('th');
+                th.className = "px-3 py-2 text-gray-500 font-bold uppercase tracking-wider max-w-[140px] break-words";
+                th.textContent = headers[i] || `Col ${i + 1}`;
+                trHead.appendChild(th);
+            }
+            thead.appendChild(trHead);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            tbody.className = "divide-y divide-gray-200 bg-white";
+
+            rows.forEach(row => {
+                const trRow = document.createElement('tr');
+                trRow.className = "hover:bg-gray-50 transition-colors";
+                
+                for (let i = 0; i < targetColCount; i++) {
+                    const td = document.createElement('td');
+                    td.className = "px-3 py-2 text-gray-700 max-w-[140px] break-words align-middle whitespace-normal";
+                    
+                    if ((i === 2 || i === 3) && row[i] !== undefined) {
+                        td.className += " bg-amber-50/60 font-medium";
+                    }
+                    
+                    td.textContent = row[i] !== undefined ? String(row[i]).trim() : "";
+                    trRow.appendChild(td);
+                }
+                tbody.appendChild(trRow);
+            });
+
+            table.appendChild(tbody);
+            tableWrapper.appendChild(table);
+            blockContainer.appendChild(tableWrapper);
+            parentFragment.appendChild(blockContainer);
+        }
+
+        function executeCopy(text, buttonElement) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = buttonElement.textContent;
+                buttonElement.textContent = "Copied!";
+                buttonElement.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
+                
+                setTimeout(() => {
+                    buttonElement.textContent = originalText;
+                    buttonElement.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
+                }, 1000);
+            });
+        }
+    
+})();
+</script>
+
+        </div>
+      </div>
+
+      <!-- ======================================================================= -->
+      <!-- TESS FILE VIEW (Raw Uploaded Data in Ascending Order of Time)           -->
+      <!-- ======================================================================= -->
+      <div class="container tab-view" id="view-tessfile" style="display: none;">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h1>TESS File Data</h1>
+            <p class="subtitle">Uploaded TESS master activities displayed in ascending order of start time</p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn btn-secondary" onclick="clearAllColumnFilters('tessTable')"
+              style="font-size: 0.75rem; padding: 4px 10px;">Reset Filters</button>
+            <div class="stat-pill pill-all">Records: <b id="tessFileCount">0</b></div>
+          </div>
+        </header>
+        <div class="table-container">
+          <table id="tessTable">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;"><input type="checkbox" id="checkAllTessBoxes"
+                    class="row-check" title="Toggle all"></th>
+                <th data-col="day">Day</th>
+                <th data-col="headline">Headline</th>
+                <th data-col="startTime">Start Time</th>
+                <th data-col="endTime">End Time</th>
+                <th data-col="venue">Venue</th>
+                <th data-col="location">Location</th>
+                <th data-col="deck">Deck</th>
+                <th data-col="aemId">AEM ID</th>
+              </tr>
+            </thead>
+            <tbody id="tessFileTableBody">
+              <tr>
+                <td colspan="9" class="empty-state">No TESS master file uploaded yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Excel-Style Bottom Sheet Title / Tab Bar -->
+    <footer class="excel-bottom-bar">
+      <div class="excel-tab-list">
+        <button class="excel-nav-btn" title="First sheet"><i class="fa-solid fa-angles-left"></i></button>
+        <button class="excel-nav-btn" title="Previous sheet"><i class="fa-solid fa-angle-left"></i></button>
+        <button class="excel-nav-btn" title="Next sheet"><i class="fa-solid fa-angle-right"></i></button>
+        <button class="excel-nav-btn" title="Last sheet"><i class="fa-solid fa-angles-right"></i></button>
+
+        <div class="excel-sheet-tab active" data-tab="comparison">
+          <i class="fa-regular fa-file-lines" style="color:#107c41;"></i>
+          <span>Activities Comparison</span>
+        </div>
+        <div class="excel-sheet-tab" data-tab="tessfile">
+          <span>TESS file</span>
+        </div>
+        <div class="excel-sheet-tab" data-tab="dualsearch">
+          <span>CSV Dual Search</span>
+        </div>
+
+        <!-- <button class="excel-add-sheet" id="addSheetBtn" title="Add sheet">
+        <i class="fa-solid fa-plus"></i>
+      </button> -->
+      </div>
+
+      <!-- <div class="excel-status-info">
+      <span>Ready</span>
+      <span id="excelStatusCount">Count: 0</span>
+      <span id="excelStatusMatch">Matches: 0</span>
+      <span>100%</span>
+    </div> -->
+    </footer>
+
+  </main>
+
+  <script>
+    // Sidebar Toggle & Click-to-upload in Collapsed Mode
+    const appSidebar = document.getElementById('appSidebar');
+    const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+    if (toggleSidebarBtn && appSidebar) {
+      toggleSidebarBtn.addEventListener('click', () => {
+        appSidebar.classList.toggle('collapsed');
+      });
+    }
+
+    const aemDropCard = document.getElementById('aemDropCard');
+    if (aemDropCard) {
+      aemDropCard.addEventListener('click', (e) => {
+        if (appSidebar.classList.contains('collapsed')) {
+          document.getElementById('aemFiles').click();
+        }
+      });
+    }
+
+    const tessDropCard = document.getElementById('tessDropCard');
+    if (tessDropCard) {
+      tessDropCard.addEventListener('click', (e) => {
+        if (appSidebar.classList.contains('collapsed')) {
+          document.getElementById('tessFile').click();
+        }
+      });
+    }
+
+
+    /* ========================================================================= */
+    /* ROBUST PERSISTENCE HELPERS (localStorage + document.cookie dual storage)  */
+    /* ========================================================================= */
+    function persistData(key, value) {
+      const jsonStr = JSON.stringify(value);
+      try {
+        localStorage.setItem(key, jsonStr);
+      } catch (e) {
+        console.warn('localStorage not accessible, falling back to cookie:', e);
+      }
+      try {
+        const d = new Date();
+        d.setTime(d.getTime() + (365 * 24 * 60 * 60 * 1000));
+        document.cookie = key + "=" + encodeURIComponent(jsonStr) + ";expires=" + d.toUTCString() + ";path=/;SameSite=Lax";
+      } catch (e) { }
+    }
+
+    function retrieveData(key) {
+      try {
+        const localVal = localStorage.getItem(key);
+        if (localVal) return JSON.parse(localVal);
+      } catch (e) { }
+
+      try {
+        const cname = key + "=";
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const ca = decodedCookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+          let c = ca[i].trim();
+          if (c.indexOf(cname) === 0) {
+            return JSON.parse(c.substring(cname.length));
+          }
+        }
+      } catch (e) { }
+
+      return null;
+    }
+
+    // Hash helper for clean, collision-free persistent keys
+    function hashKey(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return 'k_' + Math.abs(hash);
+    }
+
+    // Persisted checked state maps
+    let persistedComparisonChecks = retrieveData('comp_checks') || {};
+    let persistedTessChecks = retrieveData('tess_checks') || {};
+    let persistedColWidths = retrieveData('col_widths') || {};
+
+    function saveComparisonChecks() {
+      persistData('comp_checks', persistedComparisonChecks);
+    }
+    function saveTessChecks() {
+      persistData('tess_checks', persistedTessChecks);
+    }
+    function saveColWidths() {
+      persistData('col_widths', persistedColWidths);
+    }
+
+    /* ========================================================================= */
+    /* COLUMN FILTERING SYSTEM                                                   */
+    /* ========================================================================= */
+    const comparisonColFilters = {};
+    const tessColFilters = {};
+
+    function setupColumnFeatures(tableId, onFilterChange) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const thead = table.querySelector('thead');
+      if (!thead) return;
+
+      const ths = thead.querySelectorAll('th');
+      ths.forEach((th, colIdx) => {
+        // Skip checkbox first column
+        if (colIdx === 0) return;
+
+        th.classList.add('resizable-th');
+        const colKey = th.getAttribute('data-col') || `col_${colIdx}`;
+
+        // Restore saved width if present
+        const savedWidthKey = `${tableId}_${colKey}`;
+        if (persistedColWidths[savedWidthKey]) {
+          th.style.width = persistedColWidths[savedWidthKey] + 'px';
+        }
+
+        // Only add filter UI & resizer once
+        if (!th.querySelector('.col-resizer')) {
+          const originalText = th.textContent.trim();
+          th.innerHTML = `
+            <div class="th-content">
+              <span>${originalText}</span>
+              <button class="col-filter-btn" title="Filter column" onclick="event.stopPropagation(); toggleFilterDropdown('${tableId}', '${colKey}', this)">
+                <i class="fa-solid fa-filter"></i>
+              </button>
+            </div>
+            <div class="col-filter-dropdown" id="dropdown_${tableId}_${colKey}" onclick="event.stopPropagation()">
+              <input type="text" placeholder="Filter ${originalText}..." onkeyup="handleColumnFilterInput('${tableId}', '${colKey}', this.value)">
+              <div class="filter-actions">
+                <button class="filter-btn filter-btn-clear" onclick="clearSingleColumnFilter('${tableId}', '${colKey}')">Clear</button>
+                <button class="filter-btn" onclick="closeAllFilterDropdowns()">Close</button>
+              </div>
+            </div>
+            <div class="col-resizer"></div>
+          `;
+
+          // Resizer drag handler
+          const resizer = th.querySelector('.col-resizer');
+          let startX, startWidth;
+
+          resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startX = e.pageX;
+            startWidth = th.offsetWidth;
+            resizer.classList.add('resizing');
+
+            function onMouseMove(e) {
+              const newWidth = Math.max(50, startWidth + (e.pageX - startX));
+              th.style.width = newWidth + 'px';
+              persistedColWidths[savedWidthKey] = newWidth;
+            }
+
+            function onMouseUp() {
+              resizer.classList.remove('resizing');
+              document.removeEventListener('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+              saveColWidths();
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          });
+        }
+      });
+    }
+
+    function toggleFilterDropdown(tableId, colKey, btn) {
+      const dropdown = document.getElementById(`dropdown_${tableId}_${colKey}`);
+      if (!dropdown) return;
+      const isVisible = dropdown.style.display === 'block';
+      closeAllFilterDropdowns();
+      if (!isVisible) {
+        dropdown.style.display = 'block';
+        const input = dropdown.querySelector('input');
+        if (input) {
+          input.focus();
+        }
+      }
+    }
+
+    function closeAllFilterDropdowns() {
+      document.querySelectorAll('.col-filter-dropdown').forEach(d => d.style.display = 'none');
+    }
+
+    document.addEventListener('click', () => {
+      closeAllFilterDropdowns();
+    });
+
+    function handleColumnFilterInput(tableId, colKey, value) {
+      const filterMap = tableId === 'resultsTable' ? comparisonColFilters : tessColFilters;
+      const trimmed = value.trim().toLowerCase();
+      if (trimmed) {
+        filterMap[colKey] = trimmed;
+      } else {
+        delete filterMap[colKey];
+      }
+      updateFilterBtnStyle(tableId, colKey);
+
+      if (tableId === 'resultsTable') {
+        applyFilters();
+      } else {
+        renderTessFileTable();
+      }
+    }
+
+    function clearSingleColumnFilter(tableId, colKey) {
+      const dropdown = document.getElementById(`dropdown_${tableId}_${colKey}`);
+      if (dropdown) {
+        const input = dropdown.querySelector('input');
+        if (input) input.value = '';
+      }
+      const filterMap = tableId === 'resultsTable' ? comparisonColFilters : tessColFilters;
+      delete filterMap[colKey];
+      updateFilterBtnStyle(tableId, colKey);
+      dropdown.style.display = 'none';
+
+      if (tableId === 'resultsTable') {
+        applyFilters();
+      } else {
+        renderTessFileTable();
+      }
+    }
+
+    function clearAllColumnFilters(tableId) {
+      const filterMap = tableId === 'resultsTable' ? comparisonColFilters : tessColFilters;
+      Object.keys(filterMap).forEach(k => delete filterMap[k]);
+      document.querySelectorAll(`[id^="dropdown_${tableId}_"] input`).forEach(i => i.value = '');
+      document.querySelectorAll(`[id^="dropdown_${tableId}_"]`).forEach(d => d.style.display = 'none');
+      document.querySelectorAll(`#${tableId} .col-filter-btn`).forEach(b => b.classList.remove('active'));
+
+      if (tableId === 'resultsTable') {
+        applyFilters();
+      } else {
+        renderTessFileTable();
+      }
+    }
+
+    function updateFilterBtnStyle(tableId, colKey) {
+      const dropdown = document.getElementById(`dropdown_${tableId}_${colKey}`);
+      if (!dropdown) return;
+      const th = dropdown.closest('th');
+      const btn = th ? th.querySelector('.col-filter-btn') : null;
+      if (!btn) return;
+      const filterMap = tableId === 'resultsTable' ? comparisonColFilters : tessColFilters;
+      if (filterMap[colKey]) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+
+    // Excel Bottom Bar Tabs & View Switching Logic
+    document.querySelectorAll('.excel-sheet-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.excel-sheet-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        const tabKey = tab.getAttribute('data-tab');
+
+        // Hide all tab views
+        const compView = document.getElementById('view-comparison');
+        const tessView = document.getElementById('view-tessfile');
+        const dsView = document.getElementById('view-dualsearch');
+
+        if (compView) compView.style.display = 'none';
+        if (tessView) tessView.style.display = 'none';
+        if (dsView) dsView.style.display = 'none';
+
+        // Show selected tab view in the center canvas
+        // Restore default scroll area styles
+        const scrollArea = document.querySelector('.app-body-scroll');
+        if (scrollArea) { scrollArea.style.padding = '20px 24px'; scrollArea.style.overflowY = 'auto'; }
+
+        if (tabKey === 'comparison') {
+          if (compView) compView.style.display = 'block';
+        } else if (tabKey === 'tessfile') {
+          if (tessView) {
+            tessView.style.display = 'block';
+            renderTessFileTable();
+            setupColumnFeatures('tessTable', renderTessFileTable);
+          }
+        } else if (tabKey === 'dualsearch' || tabKey === 'dualserach') {
+          if (dsView) { dsView.style.display = 'block'; }
+          if (scrollArea) { scrollArea.style.padding = '0'; scrollArea.style.overflowY = 'auto'; }
+        }
+      });
+    });
+
+
+
+    const addSheetBtn = document.getElementById('addSheetBtn');
+    let sheetCount = 1;
+    if (addSheetBtn) {
+      addSheetBtn.addEventListener('click', () => {
+        sheetCount++;
+        const newTab = document.createElement('div');
+        newTab.className = 'excel-sheet-tab';
+        newTab.innerHTML = `<span>Sheet${sheetCount}</span>`;
+        newTab.addEventListener('click', () => {
+          document.querySelectorAll('.excel-sheet-tab').forEach(t => t.classList.remove('active'));
+          newTab.classList.add('active');
+        });
+        addSheetBtn.parentNode.insertBefore(newTab, addSheetBtn);
+      });
+    }
+
+
+    /* ========================================================================= */
+    /* TESS FILE TABLE: TIME SORT, COLUMN FILTERING & CHECKBOX STRIKE            */
+    /* ========================================================================= */
+    let tessSortedRecords = [];
+
+    function renderTessFileTable() {
+      const tbody = document.getElementById('tessFileTableBody');
+      const countEl = document.getElementById('tessFileCount');
+      if (!tbody) return;
+
+      if (!tessRecords || tessRecords.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No TESS master file uploaded yet.</td></tr>';
+        if (countEl) countEl.textContent = '0';
+        return;
+      }
+
+      // Sort by Day then Start Time ascending
+      const baseSorted = [...tessRecords].sort((a, b) => {
+        let dayA = parseInt(String(a.day).replace(/\D/g, ''), 10) || 0;
+        let dayB = parseInt(String(b.day).replace(/\D/g, ''), 10) || 0;
+        if (dayA !== dayB) return dayA - dayB;
+        return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+      });
+
+      // Apply individual column filters
+      tessSortedRecords = baseSorted.filter(r => {
+        if (tessColFilters.day && !String(r.day || '').toLowerCase().includes(tessColFilters.day)) return false;
+        if (tessColFilters.headline && !String(r.headline || '').toLowerCase().includes(tessColFilters.headline)) return false;
+        if (tessColFilters.startTime && !String(normalizeTime(r.startTime) || '').toLowerCase().includes(tessColFilters.startTime)) return false;
+        if (tessColFilters.endTime && !String(normalizeTime(r.endTime) || '').toLowerCase().includes(tessColFilters.endTime)) return false;
+        if (tessColFilters.venue && !String(r.venue || '').toLowerCase().includes(tessColFilters.venue)) return false;
+        if (tessColFilters.location && !String(r.location || '').toLowerCase().includes(tessColFilters.location)) return false;
+        if (tessColFilters.deck && !String(r.deck || '').toLowerCase().includes(tessColFilters.deck)) return false;
+        if (tessColFilters.aemId && !String(r.aemId || '').toLowerCase().includes(tessColFilters.aemId)) return false;
+        return true;
+      });
+
+      if (countEl) countEl.textContent = `${tessSortedRecords.length} / ${tessRecords.length}`;
+
+      if (tessSortedRecords.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No TESS records match current column filters.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = tessSortedRecords.map((r, idx) => {
+        const rawKey = `tess_${r.aemId}_${r.day}_${r.headline}_${r.startTime}`.trim().toLowerCase();
+        const uniqueKey = hashKey(rawKey);
+        const isChecked = !!persistedTessChecks[uniqueKey];
+        const struckClass = isChecked ? 'row-struck' : '';
+
+        return `<tr class="${struckClass}">
+        <td style="text-align: center;"><input type="checkbox" class="row-check" ${isChecked ? 'checked' : ''} onchange="toggleTessRowStrike(this, '${uniqueKey}')"></td>
+        <td style="font-weight: 600;">Day ${escapeHtml(String(r.day || ''))}</td>
+        <td>${escapeHtml(r.headline || '')}</td>
+        <td>${escapeHtml(normalizeTime(r.startTime) || r.startTime || '')}</td>
+        <td>${escapeHtml(normalizeTime(r.endTime) || r.endTime || '')}</td>
+        <td>${escapeHtml(r.venue || '')}</td>
+        <td>${escapeHtml(r.location || '')}</td>
+        <td>${escapeHtml(r.deck || '')}</td>
+        <td style="color: var(--text-muted); font-family: monospace;">${escapeHtml(r.aemId || '')}</td>
+      </tr>`;
+      }).join('');
+
+      // Check all box
+      const checkAllTess = document.getElementById('checkAllTessBoxes');
+      if (checkAllTess) {
+        checkAllTess.checked = tessSortedRecords.length > 0 && tessSortedRecords.every(r => {
+          const uniqueKey = hashKey(`tess_${r.aemId}_${r.day}_${r.headline}_${r.startTime}`.trim().toLowerCase());
+          return !!persistedTessChecks[uniqueKey];
+        });
+        checkAllTess.onchange = () => {
+          const val = checkAllTess.checked;
+          tessSortedRecords.forEach(r => {
+            const uniqueKey = hashKey(`tess_${r.aemId}_${r.day}_${r.headline}_${r.startTime}`.trim().toLowerCase());
+            persistedTessChecks[uniqueKey] = val;
+          });
+          saveTessChecks();
+          renderTessFileTable();
+        };
+      }
+    }
+
+    function toggleTessRowStrike(checkbox, uniqueKey) {
+      persistedTessChecks[uniqueKey] = checkbox.checked;
+      saveTessChecks();
+      const tr = checkbox.closest('tr');
+      if (tr) {
+        if (checkbox.checked) {
+          tr.classList.add('row-struck');
+        } else {
+          tr.classList.remove('row-struck');
+        }
+      }
+    }
+
+    let aemRecords = [];
+    let tessRecords = [];
+    let comparisonResults = [];
+    let filteredResults = [];
+
+    const aemInput = document.getElementById('aemFiles');
+    const tessInput = document.getElementById('tessFile');
+    const compareBtn = document.getElementById('compareBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const aemFileList = document.getElementById('aemFileList');
+    const tessFileInfo = document.getElementById('tessFileInfo');
+
+    aemInput.addEventListener('change', checkInputs);
+    tessInput.addEventListener('change', checkInputs);
+
+    function checkInputs() {
+      const hasAem = aemInput.files && aemInput.files.length > 0;
+      const hasTess = tessInput.files && tessInput.files.length > 0;
+
+      if (hasAem) {
+        aemFileList.innerHTML = '';
+        Array.from(aemInput.files).forEach(f => {
+          const li = document.createElement('li');
+          li.textContent = `✓ ${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
+          aemFileList.appendChild(li);
+        });
+      } else {
+        aemFileList.innerHTML = '';
+      }
+
+      if (hasTess) {
+        tessFileInfo.textContent = `✓ ${tessInput.files[0].name} (${(tessInput.files[0].size / 1024).toFixed(1)} KB)`;
+      } else {
+        tessFileInfo.textContent = '';
+      }
+
+      compareBtn.disabled = !(hasAem && hasTess);
+    }
+
+    // Time & text normalizers
+    function normalizeText(str) {
+      if (str === undefined || str === null) return '';
+      // Strip service marks and trademark symbols (SM, TM, (R), etc.) so they are not treated as mismatches
+      return String(str)
+        .replace(/[\u2120\u2122\u00AE\u00A9]/g, '') // ℠, ™, ®, ©
+        .replace(/\b(?:sm|tm)\b/gi, '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+    }
+
+    function timeToMinutes(val) {
+      if (val === undefined || val === null) return 999999;
+      let s = String(val).trim().toLowerCase();
+      if (!s || s === '—' || s === '— not found in tess —') return 999999;
+
+      if (s === 'midnight') return 0;
+      if (s === 'noon') return 12 * 60;
+
+      // Excel fractional day number
+      if (!isNaN(s) && !s.includes(':') && Number(s) >= 0 && Number(s) <= 1) {
+        return Math.round(Number(s) * 24 * 60);
+      }
+
+      const match12 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)$/i);
+      if (match12) {
+        let h = parseInt(match12[1], 10) % 12;
+        let m = parseInt(match12[2], 10);
+        if (match12[3].toLowerCase() === 'pm') h += 12;
+        return h * 60 + m;
+      }
+
+      const match24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (match24) {
+        let h = parseInt(match24[1], 10);
+        let m = parseInt(match24[2], 10);
+        return h * 60 + m;
+      }
+
+      return 999999;
+    }
+
+    function normalizeTime(val) {
+      if (val === undefined || val === null) return '';
+      let s = String(val).trim();
+      if (!s) return '';
+
+      const lower = s.toLowerCase();
+      if (lower === 'midnight') return '12:00 am';
+      if (lower === 'noon') return '12:00 pm';
+
+      // Handle Excel fractional day number (e.g., 0.58333 -> 14:00)
+      if (!isNaN(s) && !s.includes(':') && Number(s) >= 0 && Number(s) <= 1) {
+        let totalMinutes = Math.round(Number(s) * 24 * 60);
+        let hours = Math.floor(totalMinutes / 60);
+        let minutes = totalMinutes % 60;
+        let ampm = hours >= 12 ? 'pm' : 'am';
+        let h12 = hours % 12 || 12;
+        return `${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+      }
+
+      // Try parsing 12-hr time string (e.g. 2:00 PM, 02:00 pm)
+      const match12 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)$/i);
+      if (match12) {
+        let h = parseInt(match12[1], 10);
+        let m = match12[2];
+        let ap = match12[3].toLowerCase();
+        return `${h}:${m} ${ap}`;
+      }
+
+      // Try parsing 24-hr time string (e.g. 14:00, 14:00:00)
+      const match24 = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+      if (match24) {
+        let h = parseInt(match24[1], 10);
+        let m = match24[2];
+        let ap = h >= 12 ? 'pm' : 'am';
+        let h12 = h % 12 || 12;
+        return `${h12}:${m} ${ap}`;
+      }
+
+      // Fallback: clean extra spaces and make am/pm lowercase
+      return s.replace(/\s+/g, ' ')
+        .replace(/\bAM\b/g, 'am')
+        .replace(/\bPM\b/g, 'pm');
+    }
+
+    // Execute comparison
+    async function executeComparison() {
+      compareBtn.disabled = true;
+      compareBtn.textContent = 'Processing...';
+
+      try {
+        aemRecords = await readAllAemFiles(aemInput.files);
+        tessRecords = await readTessExcel(tessInput.files[0]);
+
+        // Render raw AEM and TESS file views in ascending order of time
+        renderTessFileTable();
+
+        performDiff();
+
+        // Sort final comparison records in ascending order of start time (and then Day)
+        comparisonResults.sort((a, b) => {
+          let dayA = parseInt(String(a.day).replace(/\D/g, ''), 10) || 0;
+          let dayB = parseInt(String(b.day).replace(/\D/g, ''), 10) || 0;
+          if (dayA !== dayB) return dayA - dayB;
+
+          let timeA = timeToMinutes(a.aemStartTime || a.tessStartTime);
+          let timeB = timeToMinutes(b.aemStartTime || b.tessStartTime);
+          return timeA - timeB;
+        });
+
+        populateDayFilter();
+        applyFilters();
+        exportBtn.disabled = false;
+      } catch (err) {
+        alert('Error processing files: ' + err.message);
+        console.error(err);
+      } finally {
+        compareBtn.disabled = false;
+        compareBtn.textContent = 'Compare Records';
+      }
+    }
+
+    // Read AEM CSV files
+    function readAllAemFiles(fileList) {
+      const promises = Array.from(fileList).map(file => {
+        return new Promise((resolve, reject) => {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+              // Attempt to derive Day Number from filename if column is missing/blank
+              let dayFromFilename = '';
+              const m = file.name.match(/day-?(\d+)/i);
+              if (m) dayFromFilename = m[1];
+
+              const cleaned = results.data.map(row => {
+                // Normalize keys to trimmed lowercase for reliable access
+                const normalizedRow = {};
+                Object.keys(row).forEach(k => {
+                  normalizedRow[k.trim().toLowerCase()] = row[k];
+                });
+
+                const day = normalizedRow['day number'] || normalizedRow['day'] || dayFromFilename || '';
+                return {
+                  shipCode: normalizedRow['ship code'] || '',
+                  sailId: normalizedRow['sail id'] || '',
+                  dayDate: normalizedRow['day date'] || '',
+                  dayNumber: String(day).trim(),
+                  portCode: normalizedRow['port code'] || '',
+                  title: normalizedRow['title'] || '',
+                  productCode: normalizedRow['product code'] || '',
+                  category: normalizedRow['category'] || '',
+                  subcategory: normalizedRow['subcategory'] || '',
+                  venue: normalizedRow['venue'] || '',
+                  startTime: normalizedRow['start time'] || '',
+                  endTime: normalizedRow['end time'] || '',
+                  sourceFile: file.name
+                };
+              });
+              resolve(cleaned);
+            },
+            error: (err) => reject(err)
+          });
+        });
+      });
+
+      return Promise.all(promises).then(results => results.flat());
+    }
+
+    // Read TESS Excel (Activities sheet, skipping 4 lines + blank row => 5 skipped rows)
+    function readTessExcel(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            // Search for sheet named 'Activities' (case-insensitive)
+            const sheetName = workbook.SheetNames.find(n => n.trim().toLowerCase() === 'activities') || workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+
+            // Read sheet as 2D array of rows
+            const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+            if (!rawRows || rawRows.length === 0) {
+              return resolve([]);
+            }
+
+            // Locate header row: scan first 10 rows for 'Headline' or 'AEM ID'
+            let headerIdx = -1;
+            for (let i = 0; i < Math.min(10, rawRows.length); i++) {
+              const rowStr = rawRows[i].map(c => String(c).trim().toLowerCase());
+              if (rowStr.includes('headline') || rowStr.includes('aem id')) {
+                headerIdx = i;
+                break;
+              }
+            }
+
+            // If not detected by name, fall back to standard 5 skipped rows (0-indexed line 5 is 6th row)
+            if (headerIdx === -1) {
+              headerIdx = rawRows.length > 5 ? 5 : 0;
+            }
+
+            const headers = rawRows[headerIdx].map(h => String(h).trim().toLowerCase());
+            const records = [];
+
+            for (let i = headerIdx + 1; i < rawRows.length; i++) {
+              const row = rawRows[i];
+              // Skip fully empty rows
+              if (!row || row.every(c => c === '' || c === undefined)) continue;
+
+              const entry = {};
+              headers.forEach((h, colIdx) => {
+                if (h) entry[h] = row[colIdx] !== undefined ? row[colIdx] : '';
+              });
+
+              // Extract Day as a clean number if possible (e.g., "Day 1" -> "1")
+              let rawDay = String(entry['day'] || '').trim();
+              let dayMatch = rawDay.match(/\d+/);
+              let dayNum = dayMatch ? dayMatch[0] : rawDay;
+
+              records.push({
+                aemId: entry['aem id'] || '',
+                section: entry['section'] || '',
+                division: entry['division'] || '',
+                type: entry['type'] || '',
+                headline: entry['headline'] || '',
+                day: dayNum,
+                startTime: entry['start time'] || '',
+                endTime: entry['end time'] || '',
+                venue: entry['venue'] || '',
+                location: entry['location'] || '',
+                deck: entry['deck'] || '',
+                bodyCopy: entry['body copy'] || '',
+                _used: false
+              });
+            }
+
+            resolve(records);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    // Core comparison logic: AEM is Base
+    function performDiff() {
+      comparisonResults = [];
+
+      // Reset usage flag on TESS
+      tessRecords.forEach(t => t._used = false);
+
+      aemRecords.forEach(aem => {
+        const aemTitleNorm = normalizeText(aem.title);
+        const aemDay = String(aem.dayNumber).trim();
+        const aemStartNorm = normalizeTime(aem.startTime);
+        const aemEndNorm = normalizeTime(aem.endTime);
+        const aemVenueNorm = normalizeText(aem.venue);
+
+        // Candidate matching strategy:
+        // Priority 1: Match Day and exact Headline == Title
+        // Priority 2: Match Headline == Title across any day if Day doesn't match
+        // Priority 3: Fuzzy title match (contains) with same Day
+        let matchedTess = null;
+
+        // 1. Exact Day + Exact Title
+        matchedTess = tessRecords.find(t => !t._used && normalizeText(t.headline) === aemTitleNorm && String(t.day).trim() === aemDay);
+
+        // 2. Exact Title (any day, unused)
+        if (!matchedTess) {
+          matchedTess = tessRecords.find(t => !t._used && normalizeText(t.headline) === aemTitleNorm);
+        }
+
+        // 3. Fallback: Day + Venue + Start Time
+        if (!matchedTess && aemTitleNorm) {
+          matchedTess = tessRecords.find(t => !t._used && String(t.day).trim() === aemDay && normalizeTime(t.startTime) === aemStartNorm && normalizeText(t.venue) === aemVenueNorm);
+        }
+
+        if (matchedTess) {
+          matchedTess._used = true;
+
+          const tessHeadNorm = normalizeText(matchedTess.headline);
+          const tessStartNorm = normalizeTime(matchedTess.startTime);
+          const tessEndNorm = normalizeTime(matchedTess.endTime);
+          const tessVenueNorm = normalizeText(matchedTess.venue);
+
+          const titleMatch = aemTitleNorm === tessHeadNorm;
+          const startMatch = aemStartNorm === tessStartNorm;
+          const endMatch = aemEndNorm === tessEndNorm;
+          const venueMatch = aemVenueNorm === tessVenueNorm;
+
+          const isCleanMatch = titleMatch && startMatch && endMatch && venueMatch;
+
+          comparisonResults.push({
+            status: isCleanMatch ? 'MATCH' : 'MISMATCH',
+            day: aem.dayNumber || matchedTess.day,
+            aemTitle: aem.title,
+            tessHeadline: matchedTess.headline,
+            titleMatch,
+            aemStartTime: aem.startTime,
+            tessStartTime: matchedTess.startTime,
+            startMatch,
+            aemEndTime: aem.endTime,
+            tessEndTime: matchedTess.endTime,
+            endMatch,
+            aemVenue: aem.venue,
+            tessVenue: matchedTess.venue,
+            venueMatch,
+            category: aem.category,
+            tessAemId: matchedTess.aemId,
+            sourceFile: aem.sourceFile
+          });
+        } else {
+          // Missing in TESS
+          comparisonResults.push({
+            status: 'MISSING',
+            day: aem.dayNumber,
+            aemTitle: aem.title,
+            tessHeadline: '— Not Found in TESS —',
+            titleMatch: false,
+            aemStartTime: aem.startTime,
+            tessStartTime: '—',
+            startMatch: false,
+            aemEndTime: aem.endTime,
+            tessEndTime: '—',
+            endMatch: false,
+            aemVenue: aem.venue,
+            tessVenue: '—',
+            venueMatch: false,
+            category: aem.category,
+            tessAemId: '—',
+            sourceFile: aem.sourceFile
+          });
+        }
+      });
+
+      // Update stats counters
+      const totalMatches = comparisonResults.filter(r => r.status === 'MATCH').length;
+      const totalMismatches = comparisonResults.filter(r => r.status !== 'MATCH').length;
+      document.getElementById('statTotal').textContent = comparisonResults.length;
+      document.getElementById('statMatch').textContent = totalMatches;
+      document.getElementById('statMismatch').textContent = totalMismatches;
+    }
+
+    function populateDayFilter() {
+      const dayFilter = document.getElementById('filterDay');
+      dayFilter.innerHTML = '<option value="ALL">Day: All</option>';
+
+      const days = Array.from(new Set(comparisonResults.map(r => String(r.day).trim()).filter(Boolean)))
+        .sort((a, b) => {
+          let numA = parseInt(a, 10);
+          let numB = parseInt(b, 10);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return a.localeCompare(b);
+        });
+
+      days.forEach(day => {
+        const opt = document.createElement('option');
+        opt.value = day;
+        opt.textContent = `Day ${day}`;
+        dayFilter.appendChild(opt);
+      });
+    }
+
+    function applyFilters() {
+      const statusVal = document.getElementById('filterStatus').value;
+      const dayVal = document.getElementById('filterDay').value;
+      const searchVal = document.getElementById('searchInput').value.trim().toLowerCase();
+
+      filteredResults = comparisonResults.filter(item => {
+        if (statusVal === 'MATCH' && item.status !== 'MATCH') return false;
+        if (statusVal === 'MISMATCH' && item.status !== 'MISMATCH') return false;
+        if (statusVal === 'MISSING' && item.status !== 'MISSING') return false;
+        if (statusVal === 'MISMATCH_OR_MISSING' && item.status === 'MATCH') return false;
+
+        if (dayVal !== 'ALL' && String(item.day).trim() !== dayVal) return false;
+
+        if (searchVal) {
+          const text = `${item.aemTitle} ${item.tessHeadline} ${item.aemVenue} ${item.tessVenue} ${item.category} ${item.tessAemId}`.toLowerCase();
+          if (!text.includes(searchVal)) return false;
+        }
+
+        // Column-level filters
+        if (comparisonColFilters.day && !String(item.day || '').toLowerCase().includes(comparisonColFilters.day)) return false;
+        if (comparisonColFilters.status && !String(item.status || '').toLowerCase().includes(comparisonColFilters.status)) return false;
+        if (comparisonColFilters.title) {
+          const t = `${item.aemTitle} ${item.tessHeadline}`.toLowerCase();
+          if (!t.includes(comparisonColFilters.title)) return false;
+        }
+        if (comparisonColFilters.startTime) {
+          const st = `${normalizeTime(item.aemStartTime)} ${normalizeTime(item.tessStartTime)}`.toLowerCase();
+          if (!st.includes(comparisonColFilters.startTime)) return false;
+        }
+        if (comparisonColFilters.endTime) {
+          const et = `${normalizeTime(item.aemEndTime)} ${normalizeTime(item.tessEndTime)}`.toLowerCase();
+          if (!et.includes(comparisonColFilters.endTime)) return false;
+        }
+        if (comparisonColFilters.venue) {
+          const v = `${item.aemVenue} ${item.tessVenue}`.toLowerCase();
+          if (!v.includes(comparisonColFilters.venue)) return false;
+        }
+        if (comparisonColFilters.category && !String(item.category || '').toLowerCase().includes(comparisonColFilters.category)) return false;
+        if (comparisonColFilters.tessAemId && !String(item.tessAemId || '').toLowerCase().includes(comparisonColFilters.tessAemId)) return false;
+
+        return true;
+      });
+
+      renderTable();
+      setupColumnFeatures('resultsTable', applyFilters);
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      if (filteredResults.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="empty-state">No matching records found for current filters.</td></tr>`;
+        return;
+      }
+
+      const rows = filteredResults.map((r, idx) => {
+        let statusBadge = '';
+        if (r.status === 'MATCH') {
+          statusBadge = '<span class="status-badge status-match">Match</span>';
+        } else if (r.status === 'MISMATCH') {
+          statusBadge = '<span class="status-badge status-mismatch">Mismatch</span>';
+        } else {
+          statusBadge = '<span class="status-badge status-missing">Missing</span>';
+        }
+
+        // Title cell
+        let titleHtml = '';
+        if (r.titleMatch) {
+          titleHtml = `<span class="cell-match">${escapeHtml(r.aemTitle || r.tessHeadline)}</span>`;
+        } else {
+          titleHtml = `<div class="cell-mismatch">
+          <div><span class="diff-label">AEM:</span> ${escapeHtml(r.aemTitle || '(blank)')}</div>
+          <div class="diff-val"><span class="diff-label">TESS:</span> ${escapeHtml(r.tessHeadline || '(blank)')}</div>
+        </div>`;
+        }
+
+        // Start Time cell
+        let startHtml = '';
+        if (r.startMatch) {
+          startHtml = `<span class="cell-match">${escapeHtml(normalizeTime(r.aemStartTime) || r.aemStartTime)}</span>`;
+        } else {
+          startHtml = `<div class="cell-mismatch">
+          <div><span class="diff-label">AEM:</span> ${escapeHtml(normalizeTime(r.aemStartTime) || '(blank)')}</div>
+          <div class="diff-val"><span class="diff-label">TESS:</span> ${escapeHtml(normalizeTime(r.tessStartTime) || '(blank)')}</div>
+        </div>`;
+        }
+
+        // End Time cell
+        let endHtml = '';
+        if (r.endMatch) {
+          endHtml = `<span class="cell-match">${escapeHtml(normalizeTime(r.aemEndTime) || r.aemEndTime)}</span>`;
+        } else {
+          endHtml = `<div class="cell-mismatch">
+          <div><span class="diff-label">AEM:</span> ${escapeHtml(normalizeTime(r.aemEndTime) || '(blank)')}</div>
+          <div class="diff-val"><span class="diff-label">TESS:</span> ${escapeHtml(normalizeTime(r.tessEndTime) || '(blank)')}</div>
+        </div>`;
+        }
+
+        // Venue cell
+        let venueHtml = '';
+        if (r.venueMatch) {
+          venueHtml = `<span class="cell-match">${escapeHtml(r.aemVenue || r.tessVenue)}</span>`;
+        } else {
+          venueHtml = `<div class="cell-mismatch">
+          <div><span class="diff-label">AEM:</span> ${escapeHtml(r.aemVenue || '(blank)')}</div>
+          <div class="diff-val"><span class="diff-label">TESS:</span> ${escapeHtml(r.tessVenue || '(blank)')}</div>
+        </div>`;
+        }
+
+        const rawKey = `comp_${r.day}_${r.aemTitle || r.tessHeadline}_${r.aemStartTime || r.tessStartTime}_${r.tessAemId}`.trim().toLowerCase();
+        const uniqueKey = hashKey(rawKey);
+        const isChecked = !!persistedComparisonChecks[uniqueKey];
+        const struckClass = isChecked ? 'row-struck' : '';
+
+        return `<tr class="${struckClass}" data-idx="${idx}">
+        <td style="text-align: center;"><input type="checkbox" class="row-check row-item-check" data-idx="${idx}" ${isChecked ? 'checked' : ''} onchange="toggleRowStrike(this, '${uniqueKey}')"></td>
+        <td style="font-weight: 600;">Day ${escapeHtml(String(r.day || ''))}</td>
+        <td>${statusBadge}</td>
+        <td>${titleHtml}</td>
+        <td>${startHtml}</td>
+        <td>${endHtml}</td>
+        <td>${venueHtml}</td>
+        <td style="color: var(--text-muted);">${escapeHtml(r.category || '')}</td>
+        <td style="color: var(--text-muted); font-family: monospace;">${escapeHtml(r.tessAemId || '')}</td>
+      </tr>`;
+      }).join('');
+
+      tbody.innerHTML = rows;
+
+      // Handle check all checkbox
+      const checkAll = document.getElementById('checkAllBoxes');
+      if (checkAll) {
+        checkAll.checked = filteredResults.length > 0 && filteredResults.every(r => {
+          const uniqueKey = hashKey(`comp_${r.day}_${r.aemTitle || r.tessHeadline}_${r.aemStartTime || r.tessStartTime}_${r.tessAemId}`.trim().toLowerCase());
+          return !!persistedComparisonChecks[uniqueKey];
+        });
+        checkAll.onchange = () => {
+          const val = checkAll.checked;
+          filteredResults.forEach(r => {
+            const uniqueKey = hashKey(`comp_${r.day}_${r.aemTitle || r.tessHeadline}_${r.aemStartTime || r.tessStartTime}_${r.tessAemId}`.trim().toLowerCase());
+            persistedComparisonChecks[uniqueKey] = val;
+          });
+          saveComparisonChecks();
+          renderTable();
+        };
+      }
+    }
+
+    function toggleRowStrike(checkbox, uniqueKey) {
+      persistedComparisonChecks[uniqueKey] = checkbox.checked;
+      saveComparisonChecks();
+      const tr = checkbox.closest('tr');
+      if (tr) {
+        if (checkbox.checked) {
+          tr.classList.add('row-struck');
+        } else {
+          tr.classList.remove('row-struck');
+        }
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // Export to CSV
+    function downloadResults() {
+      if (!filteredResults || filteredResults.length === 0) {
+        alert('No data to export.');
+        return;
+      }
+
+      const exportData = filteredResults.map(r => ({
+        'Day': r.day,
+        'Status': r.status,
+        'AEM Title': r.aemTitle,
+        'TESS Headline': r.tessHeadline,
+        'Title Match': r.titleMatch ? 'MATCH' : 'MISMATCH',
+        'AEM Start Time': normalizeTime(r.aemStartTime),
+        'TESS Start Time': normalizeTime(r.tessStartTime),
+        'Start Time Match': r.startMatch ? 'MATCH' : 'MISMATCH',
+        'AEM End Time': normalizeTime(r.aemEndTime),
+        'TESS End Time': normalizeTime(r.tessEndTime),
+        'End Time Match': r.endMatch ? 'MATCH' : 'MISMATCH',
+        'AEM Venue': r.aemVenue,
+        'TESS Venue': r.tessVenue,
+        'Venue Match': r.venueMatch ? 'MATCH' : 'MISMATCH',
+        'AEM Category': r.category,
+        'TESS AEM ID': r.tessAemId,
+        'AEM Source File': r.sourceFile
+      }));
+
+      const csv = Papa.unparse(exportData);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `AEM_vs_TESS_Comparison_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+
+  </script>
+
+</body>
+
+</html>

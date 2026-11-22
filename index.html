@@ -690,7 +690,14 @@
       padding: 0 12px;
       font-size: 12px;
       user-select: none;
-      box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.03);
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      flex-shrink: 0;
+      width: 100%;
     }
 
     .excel-tab-list {
@@ -769,7 +776,97 @@
       color: #64748b;
       font-size: 11px;
     }
-  </style>
+  
+    /* Rank Filter View specific styles */
+    .table-container-rf {
+      max-height: calc(100vh - 260px);
+      overflow: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      position: relative;
+      background: #ffffff;
+    }
+    #rankFilterTable {
+      width: max-content;
+      min-width: 100%;
+      table-layout: fixed;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.8rem;
+    }
+    #rankFilterTable thead th {
+      position: sticky;
+      top: 0;
+      background: #f1f5f9;
+      z-index: 12;
+      border-bottom: 2px solid #cbd5e1;
+      border-right: 1px solid #e2e8f0;
+      padding: 6px 8px;
+      white-space: nowrap;
+      user-select: none;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #rankFilterTable tbody td {
+      border-right: 1px solid #f1f5f9;
+      border-bottom: 1px solid #f1f5f9;
+      padding: 5px 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-sizing: border-box;
+    }
+    #rankFilterTable th.resizable-th {
+      position: relative;
+    }
+    #rankFilterTable .col-resizer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 7px;
+      cursor: col-resize;
+      user-select: none;
+      height: 100%;
+      z-index: 20;
+    }
+    #rankFilterTable .col-resizer:hover,
+    #rankFilterTable .col-resizer.resizing {
+      background-color: #2563eb;
+    }
+    #rankFilterTable tbody tr.rf-row-red:not(.row-struck) {
+      background-color: #fef2f2 !important;
+      color: #991b1b !important;
+    }
+    #rankFilterTable tbody tr.rf-row-red:not(.row-struck) td {
+      background-color: inherit;
+    }
+    #rankFilterTable tbody tr.rf-row-red:not(.row-struck) td .badge-cd {
+      background-color: #fee2e2;
+      color: #991b1b;
+      font-weight: 700;
+    }
+    #rankFilterTable tbody tr.rf-row-red:not(.row-struck) td .badge-tl {
+      background-color: #fee2e2;
+      color: #991b1b;
+      font-weight: 700;
+    }
+    .notes-input {
+      width: 100%;
+      min-width: 120px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 0.8rem;
+      background: #ffffff;
+      transition: border 0.15s;
+    }
+    .notes-input:focus {
+      outline: none;
+      border-color: #2563eb;
+      background: #f0f7ff;
+    }
+</style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -1508,6 +1605,124 @@
           </table>
         </div>
       </div>
+      <!-- ======================================================================= -->
+            <!-- ======================================================================= -->
+      <!-- RANK & PORT VOYAGE FILTER TAB VIEW                                      -->
+      <!-- Shows ALL data available for selected ship with Day#, Voyage, Durations -->
+      <!-- Content Deadline (-14d), TESS Lockout (-7d), Notes 1 & 2, Resizable     -->
+      <!-- ======================================================================= -->
+      <div class="container tab-view" id="view-rankfilter" style="display: none; padding: 0; margin: 0; max-width: 100%; width: 100%;">
+        <div style="background: #ffffff; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 16px 20px; margin-bottom: 20px;">
+          <header style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+            <div>
+              <h1 style="font-size: 1.35rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px; margin: 0 0 4px 0;">
+                <i class="fa-solid fa-ship" style="color: #107c41;"></i> Ship Schedule &amp; Voyage Filter
+              </h1>
+              <p class="subtitle" style="margin: 0; color: var(--text-muted); font-size: 0.82rem;">
+                Select any ship to view all records. Includes <b>Day#</b> (resets at Rank T), <b>Voyage#</b>, <b>Duration</b>, <b>Content Deadline (-14d)</b>, <b>TESS Lockout (-7d)</b> (red alert if unchecked), and custom <b>Notes</b>.
+              </p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <div class="stat-pill pill-all" style="font-size: 0.8rem; padding: 5px 12px;">Records: <b id="rfTotalCount">0</b></div>
+              <div class="stat-pill" style="font-size: 0.8rem; padding: 5px 12px; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca;">Unchecked Alerts: <b id="rfAlertCount">0</b></div>
+              <button class="btn btn-secondary" onclick="exportRankFilterCSV()" id="rfExportBtn" style="font-size: 0.8rem; padding: 5px 14px;" disabled>
+                <i class="fa-solid fa-file-excel" style="color: #107c41;"></i> Export CSV
+              </button>
+            </div>
+          </header>
+
+          <!-- Controls Bar -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end;">
+            <!-- File Upload -->
+            <div style="flex: 1 1 250px;">
+              <label style="display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">
+                1. Select Excel File (.xlsx / .xls)
+              </label>
+              <input type="file" id="rfFileInput" accept=".xlsx, .xls" style="font-size: 0.8rem; padding: 5px 8px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff;">
+            </div>
+
+            <!-- Ship Dropdown Selection (Shows all data available for selected ship) -->
+            <div style="flex: 0 1 220px;">
+              <label style="display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">
+                2. Ship Name (Row 3)
+              </label>
+              <select id="rfShipSelect" onchange="executeRankFilterExtraction()" style="font-size: 0.82rem; padding: 6px 10px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; font-weight: 600;">
+                <option value="Serenade">Serenade (Loading...)</option>
+              </select>
+            </div>
+
+            <!-- Initial Starting Voyage Number -->
+            <div style="flex: 0 1 150px;">
+              <label style="display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">
+                3. Initial Voyage #
+              </label>
+              <input type="number" id="rfInitialVoyage" value="1" min="1" step="1" onchange="executeRankFilterExtraction()" style="font-size: 0.82rem; padding: 6px 10px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff; text-align: center; font-weight: 600;">
+            </div>
+
+            <!-- Filter Option: Show All or Rank T only -->
+            <div style="flex: 0 1 160px;">
+              <label style="display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">
+                4. View Filter
+              </label>
+              <select id="rfViewFilter" onchange="applyRfTableFilter()" style="font-size: 0.82rem; padding: 6px 10px; width: 100%; border: 1px solid #cbd5e1; border-radius: 6px; background: #ffffff;">
+                <option value="all" selected>All Ship Records</option>
+                <option value="t_only">Rank T Only</option>
+                <option value="alert_only">Alert Rows Only</option>
+              </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 8px;">
+              <button class="btn" id="rfProcessBtn" onclick="processRankFilterFile()" style="font-size: 0.82rem; padding: 6px 14px; background: #107c41;">
+                <i class="fa-solid fa-sync"></i> Refresh
+              </button>
+              <button class="btn btn-secondary" onclick="resetRankFilter()" style="font-size: 0.82rem; padding: 6px 12px;">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Message Bar -->
+          <div id="rfStatusMsg" style="display: none; padding: 8px 12px; border-radius: 6px; font-size: 0.83rem; margin-bottom: 12px;"></div>
+
+          <!-- Table Container with locked headers and resizable columns -->
+          <div class="table-container-rf" id="rfTableContainer">
+            <table id="rankFilterTable">
+              <thead>
+                <tr>
+                  <th style="width: 32px; min-width: 32px; text-align: center; padding: 4px;" data-col="check">
+                    <input type="checkbox" id="checkAllRfBoxes" class="row-check" title="Toggle all strike-throughs" onchange="toggleAllRfStrikes(this.checked)">
+                  </th>
+                  <th data-col="ship" style="width: 85px;">Ship</th>
+                  <th data-col="berthDate" style="width: 80px;">Berth Date</th>
+                  <th data-col="dayNum" style="width: 48px; text-align: center; background: #fef9c3; color: #854d0e;">Day#</th>
+                  <th data-col="day" style="width: 45px;">Day</th>
+                  <th data-col="port" style="width: 50px;">Port</th>
+                  <th data-col="rank" style="width: 45px; text-align: center;">Rank</th>
+                  <th data-col="portName" style="width: 140px;">Port Name</th>
+                  <th data-col="voyage" style="width: 85px; background: #ecfdf5; color: #065f46;">Voyage</th>
+                  <th data-col="duration" style="width: 65px; text-align: right; background: #eff6ff; color: #1e40af;">Duration</th>
+                  <th data-col="arrive" style="width: 65px;">Arrive</th>
+                  <th data-col="depart" style="width: 65px;">Depart</th>
+                  <th data-col="tender" style="width: 50px; text-align: center;">Tender</th>
+                  <th data-col="contentDeadline" style="width: 110px; background: #fff1f2; color: #9f1239;">Deadline (-14d)</th>
+                  <th data-col="tessLockout" style="width: 110px; background: #fff1f2; color: #9f1239;">Lockout (-7d)</th>
+                  <th data-col="notes1" style="width: 110px;">Notes 1</th>
+                  <th data-col="notes2" style="width: 110px;">Notes 2</th>
+                </tr>
+              </thead>
+              <tbody id="rankFilterTableBody">
+                <tr>
+                  <td colspan="17" class="empty-state" style="padding: 40px 20px; text-align: center; color: var(--text-muted);">
+                    <i class="fa-solid fa-file-excel" style="font-size: 2rem; color: #94a3b8; margin-bottom: 10px; display: block;"></i>
+                    Please select an Excel file above and click <b>Refresh</b> to load the ship schedule data.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Excel-Style Bottom Sheet Title / Tab Bar -->
@@ -1527,6 +1742,10 @@
         </div>
         <div class="excel-sheet-tab" data-tab="dualsearch">
           <span>CSV Dual Search</span>
+        </div>
+        <div class="excel-sheet-tab" data-tab="rankfilter">
+          <i class="fa-solid fa-ship" style="color:#107c41;"></i>
+          <span>Rank Filter</span>
         </div>
 
         <!-- <button class="excel-add-sheet" id="addSheetBtn" title="Add sheet">
@@ -1810,10 +2029,12 @@
         const compView = document.getElementById('view-comparison');
         const tessView = document.getElementById('view-tessfile');
         const dsView = document.getElementById('view-dualsearch');
+        const rfView = document.getElementById('view-rankfilter');
 
         if (compView) compView.style.display = 'none';
         if (tessView) tessView.style.display = 'none';
         if (dsView) dsView.style.display = 'none';
+        if (rfView) rfView.style.display = 'none';
 
         // Show selected tab view in the center canvas
         // Restore default scroll area styles
@@ -1831,6 +2052,12 @@
         } else if (tabKey === 'dualsearch' || tabKey === 'dualserach') {
           if (dsView) { dsView.style.display = 'block'; }
           if (scrollArea) { scrollArea.style.padding = '0'; scrollArea.style.overflowY = 'auto'; }
+        } else if (tabKey === 'rankfilter') {
+          if (rfView) { rfView.style.display = 'block'; }
+          if (scrollArea) { scrollArea.style.padding = '12px 16px'; scrollArea.style.overflowY = 'auto'; }
+          if (typeof setupRankFilterFeatures === 'function') {
+            setupRankFilterFeatures();
+          }
         }
       });
     });
@@ -2567,7 +2794,704 @@
     }
 
 
-  </script>
+  
+
+    
+    // =========================================================================
+    // SHIP SCHEDULE & RANK VOYAGE FILTER LOGIC
+    // =========================================================================
+    let rfFilteredResults = [];
+    let rfRawWorkbook = null;
+    let rfStruckKeys = new Set();
+    let rfNotes1 = {};
+    let rfNotes2 = {};
+
+    // Load persisted strikes and notes from localStorage
+    try {
+      const savedStrikes = localStorage.getItem('rf_struck_keys');
+      if (savedStrikes) rfStruckKeys = new Set(JSON.parse(savedStrikes));
+      const savedN1 = localStorage.getItem('rf_notes1');
+      if (savedN1) rfNotes1 = JSON.parse(savedN1);
+      const savedN2 = localStorage.getItem('rf_notes2');
+      if (savedN2) rfNotes2 = JSON.parse(savedN2);
+    } catch (e) {
+      console.warn('Failed to load RF persisted state:', e);
+    }
+
+    function saveRfPersistedState() {
+      try {
+        localStorage.setItem('rf_struck_keys', JSON.stringify(Array.from(rfStruckKeys)));
+        localStorage.setItem('rf_notes1', JSON.stringify(rfNotes1));
+        localStorage.setItem('rf_notes2', JSON.stringify(rfNotes2));
+      } catch (e) {
+        console.warn('Failed to save RF persisted state:', e);
+      }
+    }
+
+    // Auto-listen to file upload
+    const rfFileInputEl = document.getElementById('rfFileInput');
+    if (rfFileInputEl) {
+      rfFileInputEl.addEventListener('change', function(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            rfRawWorkbook = XLSX.read(data, { type: 'array', cellDates: true });
+            populateShipSelectFromWorkbook(rfRawWorkbook);
+            executeRankFilterExtraction();
+            showRfStatus('File loaded successfully: "' + file.name + '". Showing all records.', 'success');
+          } catch (err) {
+            console.error(err);
+            showRfStatus('Failed to read Excel file: ' + err.message, 'error');
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function showRfStatus(msg, type) {
+      const el = document.getElementById('rfStatusMsg');
+      if (!el) return;
+      el.style.display = 'block';
+      if (type === 'error') {
+        el.style.background = '#fef2f2';
+        el.style.color = '#991b1b';
+        el.style.border = '1px solid #fecaca';
+      } else if (type === 'success') {
+        el.style.background = '#f0fdf4';
+        el.style.color = '#166534';
+        el.style.border = '1px solid #bbf7d0';
+      } else {
+        el.style.background = '#f8fafc';
+        el.style.color = '#334155';
+        el.style.border = '1px solid #e2e8f0';
+      }
+      el.innerHTML = msg;
+    }
+
+    function populateShipSelectFromWorkbook(wb) {
+      const select = document.getElementById('rfShipSelect');
+      if (!select || !wb) return;
+      const sheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[sheetName];
+      if (!sheet) return;
+
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      if (rows.length < 3) return;
+
+      const row3 = rows[2] || [];
+      const ships = new Set();
+      for (let i = 0; i < row3.length; i++) {
+        const s = String(row3[i] || '').trim();
+        if (s && s.toUpperCase() !== 'SHIP' && s.toUpperCase() !== 'CLASS' && s !== '|') {
+          ships.add(s);
+        }
+      }
+
+      // If row 3 had no ships, check row 2
+      if (ships.size === 0 && rows.length >= 2) {
+        const row2 = rows[1] || [];
+        for (let i = 0; i < row2.length; i++) {
+          const s = String(row2[i] || '').trim();
+          if (s && s.toUpperCase() !== 'CLASS' && s !== '|') ships.add(s);
+        }
+      }
+
+      const shipList = Array.from(ships).sort();
+      const currentSelected = select.value || 'Serenade';
+      select.innerHTML = '';
+      let matchFound = false;
+
+      shipList.forEach(ship => {
+        const opt = document.createElement('option');
+        opt.value = ship;
+        opt.textContent = ship;
+        if (ship.toLowerCase() === currentSelected.toLowerCase() || (!matchFound && ship.toLowerCase() === 'serenade')) {
+          opt.selected = true;
+          matchFound = true;
+        }
+        select.appendChild(opt);
+      });
+
+      if (!matchFound && shipList.length > 0) {
+        select.selectedIndex = 0;
+      }
+    }
+
+    function parseRfDate(val) {
+      if (!val) return null;
+      if (val instanceof Date && !isNaN(val)) return val;
+      const s = String(val).trim();
+      if (!s) return null;
+
+      // Numeric Excel date serial
+      const num = Number(s);
+      if (!isNaN(num) && num > 20000 && num < 100000) {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        return new Date(excelEpoch.getTime() + num * 86400000);
+      }
+
+      // mm/dd/yyyy or yyyy-mm-dd
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) return parsed;
+
+      const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+      if (m) {
+        let month = parseInt(m[1], 10) - 1;
+        let day = parseInt(m[2], 10);
+        let year = parseInt(m[3], 10);
+        if (year < 100) year += 2000;
+        return new Date(year, month, day);
+      }
+      return null;
+    }
+
+    function formatRfDate(dt) {
+      if (!dt || !(dt instanceof Date) || isNaN(dt.getTime())) return '';
+      const m = String(dt.getMonth() + 1);
+      const d = String(dt.getDate());
+      const y = dt.getFullYear();
+      return `${m}/${d}/${y}`;
+    }
+
+    function processRankFilterFile() {
+      if (!rfRawWorkbook) {
+        const fileInput = document.getElementById('rfFileInput');
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+          const file = fileInput.files[0];
+          const reader = new FileReader();
+          reader.onload = function(evt) {
+            try {
+              const data = new Uint8Array(evt.target.result);
+              rfRawWorkbook = XLSX.read(data, { type: 'array', cellDates: true });
+              populateShipSelectFromWorkbook(rfRawWorkbook);
+              executeRankFilterExtraction();
+            } catch (err) {
+              showRfStatus('Failed to process file: ' + err.message, 'error');
+            }
+          };
+          reader.readAsArrayBuffer(file);
+          return;
+        } else {
+          showRfStatus('Please select an Excel file (.xlsx or .xls) first.', 'error');
+          return;
+        }
+      }
+      executeRankFilterExtraction();
+    }
+
+    function executeRankFilterExtraction() {
+      if (!rfRawWorkbook) return;
+      const sheetName = rfRawWorkbook.SheetNames[0];
+      const sheet = rfRawWorkbook.Sheets[sheetName];
+      if (!sheet) {
+        showRfStatus('No sheets found in workbook.', 'error');
+        return;
+      }
+
+      // Read raw array of rows
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      if (rows.length < 5) {
+        showRfStatus('Excel file does not have enough rows (requires at least 5 rows).', 'error');
+        return;
+      }
+
+      const row3 = rows[2] || []; // Ships in Row 3 (index 2)
+      const row4 = rows[3] || []; // Headers in Row 4 (index 3)
+
+      const selectEl = document.getElementById('rfShipSelect');
+      const targetShip = (selectEl ? selectEl.value : 'Serenade').trim();
+      const targetShipLower = targetShip.toLowerCase();
+
+      let initVoyage = parseInt(document.getElementById('rfInitialVoyage') ? document.getElementById('rfInitialVoyage').value : '1', 10);
+      if (isNaN(initVoyage)) initVoyage = 1;
+
+      // Identify column indices for target ship in Row 3
+      let targetShipCols = [];
+      for (let c = 0; c < row3.length; c++) {
+        const s = String(row3[c] || '').trim().toLowerCase();
+        if (s === targetShipLower) {
+          targetShipCols.push(c);
+        }
+      }
+
+      // Fallback: Check row 2 if row 3 had no match
+      if (targetShipCols.length === 0) {
+        for (let rIdx = 0; rIdx < 3; rIdx++) {
+          const r = rows[rIdx] || [];
+          for (let c = 0; c < r.length; c++) {
+            if (String(r[c] || '').trim().toLowerCase() === targetShipLower) {
+              targetShipCols.push(c);
+            }
+          }
+          if (targetShipCols.length > 0) break;
+        }
+      }
+
+      // Map column headers within the ship's slice
+      let rankCol = -1;
+      let portNameCol = -1;
+      let portCol = -1;
+      let arriveCol = -1;
+      let departCol = -1;
+      let tenderCol = -1;
+
+      if (targetShipCols.length > 0) {
+        targetShipCols.forEach(c => {
+          const h = String(row4[c] || '').trim().toUpperCase();
+          if (h === 'RANK') rankCol = c;
+          else if (h === 'PORT NAME' || h === 'PORTNAME') portNameCol = c;
+          else if (h === 'PORT') portCol = c;
+          else if (h === 'ARRIVE' || h === 'ARRIVAL') arriveCol = c;
+          else if (h === 'DEPART' || h === 'DEPARTURE') departCol = c;
+          else if (h === 'TENDER') tenderCol = c;
+        });
+      }
+
+      // Global fallback if not found within ship's slice
+      if (rankCol === -1) {
+        for (let c = 0; c < row4.length; c++) {
+          const h = String(row4[c] || '').trim().toUpperCase();
+          if (h === 'RANK') { rankCol = c; break; }
+        }
+      }
+      if (portNameCol === -1) {
+        for (let c = 0; c < row4.length; c++) {
+          const h = String(row4[c] || '').trim().toUpperCase();
+          if (h === 'PORT NAME' || h === 'PORTNAME') { portNameCol = c; break; }
+        }
+      }
+      if (portCol === -1) {
+        for (let c = 0; c < row4.length; c++) {
+          const h = String(row4[c] || '').trim().toUpperCase();
+          if (h === 'PORT') { portCol = c; break; }
+        }
+      }
+
+      // Berth Date is Column A (index 0), Day is Column B (index 1)
+      const berthDateCol = 0;
+      const dayCol = 1;
+
+      let allShipRecords = [];
+      let dayNumber = 1;
+      let currentVoyageNum = initVoyage;
+
+      for (let r = 4; r < rows.length; r++) {
+        const rowData = rows[r];
+        if (!rowData || rowData.length === 0) continue;
+
+        const berthDateStr = String(rowData[berthDateCol] || '').trim();
+        // Stop if berthDate is empty or row is completely empty
+        if (!berthDateStr && (!rowData[dayCol] || !rowData[rankCol])) continue;
+
+        const dayStr = String(rowData[dayCol] || '').trim();
+        const portCodeStr = portCol !== -1 ? String(rowData[portCol] || '').trim() : '';
+        const rankVal = rankCol !== -1 ? String(rowData[rankCol] || '').trim() : '';
+        const portNameStr = portNameCol !== -1 ? String(rowData[portNameCol] || '').trim() : '';
+        const arriveStr = arriveCol !== -1 ? String(rowData[arriveCol] || '').trim() : '';
+        const departStr = departCol !== -1 ? String(rowData[departCol] || '').trim() : '';
+        const tenderStr = tenderCol !== -1 ? String(rowData[tenderCol] || '').trim() : '';
+
+        const isRankT = rankVal.trim().toUpperCase() === 'T';
+
+        // Requirement: "b/w the columns berth date and day add a column day# counting from 1
+        // and incrementing for the next rows until a record with rank T is met when met reset day# to 1"
+        if (allShipRecords.length === 0) {
+          dayNumber = 1;
+        } else if (isRankT) {
+          dayNumber = 1;
+        } else {
+          dayNumber++;
+        }
+
+        // Parse Date for Deadlines & Duration
+        const dateObj = parseRfDate(berthDateStr);
+        let contentDeadlineStr = '';
+        let tessLockoutStr = '';
+        let contentDeadlineObj = null;
+        let tessLockoutObj = null;
+
+        if (dateObj && !isNaN(dateObj.getTime())) {
+          // Content Deadline: date before 14 days of berth date
+          contentDeadlineObj = new Date(dateObj.getTime() - 14 * 86400000);
+          contentDeadlineStr = formatRfDate(contentDeadlineObj);
+
+          // TESS Lockout: date before 7 days of berth date
+          tessLockoutObj = new Date(dateObj.getTime() - 7 * 86400000);
+          tessLockoutStr = formatRfDate(tessLockoutObj);
+        }
+
+        // Requirement: "the voyage number should be changed after every row having rank T"
+        // Every row belongs to currentVoyageNum; after a row having rank T, the voyage number increments for next rows.
+        let voyageStr = 'Voyage ' + currentVoyageNum;
+        if (isRankT) {
+          currentVoyageNum++;
+        }
+
+        const uniqueKey = `${targetShip}_${r}_${berthDateStr}`;
+
+        allShipRecords.push({
+          key: uniqueKey,
+          rowIndex: r + 1,
+          ship: targetShip,
+          berthDate: berthDateStr,
+          dayNumber: dayNumber,
+          day: dayStr,
+          port: portCodeStr,
+          rank: rankVal,
+          isRankT: isRankT,
+          portName: portNameStr,
+          voyageDisplay: voyageStr,
+          durationDays: '-', // computed below
+          arrive: arriveStr,
+          depart: departStr,
+          tender: tenderStr,
+          dateObj: dateObj,
+          contentDeadline: contentDeadlineStr,
+          tessLockout: tessLockoutStr,
+          notes1: rfNotes1[uniqueKey] || '',
+          notes2: rfNotes2[uniqueKey] || ''
+        });
+      }
+
+      // Compute Duration b/w last row's BERTH DATE
+      for (let i = 0; i < allShipRecords.length; i++) {
+        if (i > 0) {
+          const prevDate = allShipRecords[i - 1].dateObj;
+          const currDate = allShipRecords[i].dateObj;
+          if (prevDate && currDate && !isNaN(prevDate.getTime()) && !isNaN(currDate.getTime())) {
+            const diffMs = currDate.getTime() - prevDate.getTime();
+            const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            allShipRecords[i].durationDays = days;
+          }
+        }
+      }
+
+      rfFilteredResults = allShipRecords;
+      applyRfTableFilter();
+      showRfStatus(`Loaded <b>${allShipRecords.length}</b> total records for <b>${targetShip}</b>. Day# sequence and voyage assignments active.`, 'success');
+      const expBtn = document.getElementById('rfExportBtn');
+      if (expBtn) expBtn.disabled = false;
+      const countEl = document.getElementById('rfTotalCount');
+      if (countEl) countEl.textContent = allShipRecords.length;
+    }
+
+    function applyRfTableFilter() {
+      const filterType = (document.getElementById('rfViewFilter') ? document.getElementById('rfViewFilter').value : 'all');
+      let recordsToShow = rfFilteredResults;
+
+      if (filterType === 't_only') {
+        recordsToShow = rfFilteredResults.filter(r => r.isRankT);
+      } else if (filterType === 'alert_only') {
+        const today = new Date();
+        recordsToShow = rfFilteredResults.filter(r => {
+          if (rfStruckKeys.has(r.key)) return false; // checked rows don't show alert
+          if (!r.dateObj) return false;
+          // Deadline within 14 days or past
+          const diffDays = Math.round((r.dateObj.getTime() - today.getTime()) / 86400000);
+          return diffDays <= 14;
+        });
+      }
+
+      renderRankFilterTable(recordsToShow);
+    }
+
+    function renderRankFilterTable(records) {
+      const tbody = document.getElementById('rankFilterTableBody');
+      if (!tbody) return;
+
+      if (!records || records.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="17" class="empty-state" style="padding: 40px; text-align: center; color: var(--text-muted);"><i class="fa-solid fa-file-excel" style="font-size: 2rem; color: #94a3b8; margin-bottom: 10px; display: block;"></i>No matching records found.</td></tr>`;
+        return;
+      }
+
+      const today = new Date();
+      let alertCount = 0;
+      let html = '';
+
+      records.forEach((r) => {
+        const isStruck = rfStruckKeys.has(r.key);
+
+        // Check red row condition:
+        // "if not checked show entire row as red" for Content Deadline (-14d) and TESS lockout (-7d)
+        let isRed = false;
+        if (!isStruck && r.dateObj && !isNaN(r.dateObj.getTime())) {
+          // If today has reached or is within the deadline window (14 days before berth date)
+          // or whenever unchecked and within warning range
+          const daysUntilBerth = Math.round((r.dateObj.getTime() - today.getTime()) / 86400000);
+          if (daysUntilBerth <= 14) {
+            isRed = true;
+            alertCount++;
+          }
+        }
+
+        const trClass = [
+          isStruck ? 'row-struck' : '',
+          isRed ? 'rf-row-red' : ''
+        ].filter(Boolean).join(' ');
+
+        const durDisplay = r.durationDays === '-' ? '<span style="color:#94a3b8;">-</span>' : `<b>${r.durationDays}</b>d`;
+        const arriveFmt = typeof normalizeTime === 'function' ? (normalizeTime(r.arrive) || r.arrive) : r.arrive;
+        const departFmt = typeof normalizeTime === 'function' ? (normalizeTime(r.depart) || r.depart) : r.depart;
+
+        const rankBadge = r.isRankT
+          ? `<span style="display: inline-block; background: #fef3c7; color: #92400e; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; border: 1px solid #fde68a;">${escapeHtml(r.rank)}</span>`
+          : `<span style="color: #64748b; font-size: 0.75rem;">${escapeHtml(r.rank)}</span>`;
+
+        const voyageBadge = r.voyageDisplay
+          ? `<span style="display: inline-block; background: #107c41; color: #ffffff; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.78rem;">${escapeHtml(r.voyageDisplay)}</span>`
+          : '';
+
+        const cdBadge = r.contentDeadline
+          ? `<span class="badge-cd" style="padding: 2px 6px; border-radius: 4px; font-weight: 600;">${r.contentDeadline}</span>`
+          : '-';
+
+        const tlBadge = r.tessLockout
+          ? `<span class="badge-tl" style="padding: 2px 6px; border-radius: 4px; font-weight: 600;">${r.tessLockout}</span>`
+          : '-';
+
+        html += `
+          <tr class="${trClass}" data-key="${escapeHtml(r.key)}" style="border-bottom: 1px solid #f1f5f9; transition: background 0.1s ease;">
+            <td style="width: 42px; text-align: center; padding: 6px;">
+              <input type="checkbox" class="row-check" ${isStruck ? 'checked' : ''} onchange="toggleRfStrike('${escapeHtml(r.key)}', this.checked)">
+            </td>
+            <td style="padding: 6px 10px; font-weight: 600; color: #1e293b; white-space: nowrap;">
+              <i class="fa-solid fa-ship" style="color: #107c41; margin-right: 4px; font-size: 0.75rem;"></i>${escapeHtml(r.ship)}
+            </td>
+            <td style="padding: 6px 10px; font-weight: 600; white-space: nowrap;">${escapeHtml(r.berthDate)}</td>
+            <td style="padding: 6px 10px; text-align: center; font-weight: 700; color: #854d0e; background: ${r.dayNumber === 1 ? '#fef08a' : '#fefce8'};">${r.dayNumber}</td>
+            <td style="padding: 6px 10px; color: #64748b; font-weight: 500;">${escapeHtml(r.day)}</td>
+            <td style="padding: 6px 10px; font-weight: 600; color: #2563eb;">${escapeHtml(r.port)}</td>
+            <td style="padding: 6px 10px; text-align: center;">${rankBadge}</td>
+            <td style="padding: 6px 10px; font-weight: 500;">${escapeHtml(r.portName)}</td>
+            <td style="padding: 6px 10px; background: #f0fdf4;">${voyageBadge}</td>
+            <td style="padding: 6px 10px; text-align: right; background: #eff6ff; color: #1e40af;">${durDisplay}</td>
+            <td style="padding: 6px 10px; color: #475569; white-space: nowrap;">${escapeHtml(arriveFmt)}</td>
+            <td style="padding: 6px 10px; color: #475569; white-space: nowrap;">${escapeHtml(departFmt)}</td>
+            <td style="padding: 6px 10px; text-align: center; color: #64748b;">${escapeHtml(r.tender)}</td>
+            <td style="padding: 6px 10px; white-space: nowrap;">${cdBadge}</td>
+            <td style="padding: 6px 10px; white-space: nowrap;">${tlBadge}</td>
+            <td style="padding: 2px 4px;">
+              <input type="text" class="notes-input" placeholder="Notes 1..." value="${escapeHtml(r.notes1)}" onchange="updateRfNotes('${escapeHtml(r.key)}', 1, this.value)" style="min-width: 80px; padding: 2px 4px; font-size: 0.78rem;">
+            </td>
+            <td style="padding: 2px 4px;">
+              <input type="text" class="notes-input" placeholder="Notes 2..." value="${escapeHtml(r.notes2)}" onchange="updateRfNotes('${escapeHtml(r.key)}', 2, this.value)" style="min-width: 80px; padding: 2px 4px; font-size: 0.78rem;">
+            </td>
+          </tr>
+        `;
+      });
+
+      tbody.innerHTML = html;
+
+      const alertEl = document.getElementById('rfAlertCount');
+      if (alertEl) alertEl.textContent = alertCount;
+
+      setupRankFilterFeatures();
+    }
+
+    function toggleRfStrike(key, isChecked) {
+      if (isChecked) {
+        rfStruckKeys.add(key);
+      } else {
+        rfStruckKeys.delete(key);
+      }
+      saveRfPersistedState();
+
+      // Find the specific row and update its classes directly for instant response
+      const tr = document.querySelector(`tr[data-key="${CSS.escape(key)}"]`);
+      if (tr) {
+        if (isChecked) {
+          tr.classList.add('row-struck');
+          tr.classList.remove('rf-row-red');
+        } else {
+          tr.classList.remove('row-struck');
+          // Re-evaluate red condition
+          const rec = rfFilteredResults.find(r => r.key === key);
+          if (rec && rec.dateObj && !isNaN(rec.dateObj.getTime())) {
+            const today = new Date();
+            const daysUntilBerth = Math.round((rec.dateObj.getTime() - today.getTime()) / 86400000);
+            if (daysUntilBerth <= 14) {
+              tr.classList.add('rf-row-red');
+            }
+          }
+        }
+      }
+      updateRfAlertCount();
+    }
+
+    function toggleAllRfStrikes(isChecked) {
+      const checkboxes = document.querySelectorAll('#rankFilterTableBody input.row-check');
+      checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+        const tr = cb.closest('tr');
+        if (tr) {
+          const key = tr.getAttribute('data-key');
+          if (key) {
+            if (isChecked) rfStruckKeys.add(key);
+            else rfStruckKeys.delete(key);
+          }
+        }
+      });
+      saveRfPersistedState();
+      applyRfTableFilter();
+    }
+
+    function updateRfAlertCount() {
+      const redRows = document.querySelectorAll('#rankFilterTableBody tr.rf-row-red:not(.row-struck)');
+      const alertEl = document.getElementById('rfAlertCount');
+      if (alertEl) alertEl.textContent = redRows.length;
+    }
+
+    function updateRfNotes(key, noteIndex, value) {
+      if (noteIndex === 1) {
+        rfNotes1[key] = value;
+      } else {
+        rfNotes2[key] = value;
+      }
+      const item = rfFilteredResults.find(r => r.key === key);
+      if (item) {
+        if (noteIndex === 1) item.notes1 = value;
+        else item.notes2 = value;
+      }
+      saveRfPersistedState();
+    }
+
+    // Column Resizing & Locked Headers Implementation for Rank Filter Table
+    function setupRankFilterFeatures() {
+      const table = document.getElementById('rankFilterTable');
+      if (!table) return;
+      const thead = table.querySelector('thead');
+      if (!thead) return;
+
+      const ths = thead.querySelectorAll('th');
+      ths.forEach((th, colIdx) => {
+        // Skip first checkbox column
+        if (colIdx === 0) return;
+
+        th.classList.add('resizable-th');
+        const colKey = th.getAttribute('data-col') || `col_${colIdx}`;
+        const savedKey = `rankFilterTable_${colKey}`;
+
+        // Restore saved width if present
+        if (typeof persistedColWidths !== 'undefined' && persistedColWidths[savedKey]) {
+          th.style.width = persistedColWidths[savedKey] + 'px';
+          th.style.minWidth = persistedColWidths[savedKey] + 'px';
+          th.style.maxWidth = persistedColWidths[savedKey] + 'px';
+        }
+
+        // Add resizer if not present
+        let resizer = th.querySelector('.col-resizer');
+        if (!resizer) {
+          resizer = document.createElement('div');
+          resizer.className = 'col-resizer';
+          th.appendChild(resizer);
+
+          resizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const startX = e.pageX;
+            const startWidth = th.getBoundingClientRect().width;
+            resizer.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+
+            function onMouseMove(evt) {
+              const diff = evt.pageX - startX;
+              const newWidth = Math.max(38, Math.round(startWidth + diff));
+              th.style.width = newWidth + 'px';
+              th.style.minWidth = newWidth + 'px';
+              th.style.maxWidth = newWidth + 'px';
+              if (typeof persistedColWidths !== 'undefined') {
+                persistedColWidths[savedKey] = newWidth;
+              }
+            }
+
+            function onMouseUp() {
+              resizer.classList.remove('resizing');
+              document.body.style.cursor = '';
+              document.body.style.userSelect = '';
+              document.removeEventListener('mousemove', onMouseMove);
+              document.removeEventListener('mouseup', onMouseUp);
+              if (typeof saveColWidths === 'function') {
+                saveColWidths();
+              }
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+          });
+        }
+      });
+    }
+
+    function exportRankFilterCSV() {
+      if (!rfFilteredResults || rfFilteredResults.length === 0) {
+        alert('No data to export.');
+        return;
+      }
+      const headers = ['#', 'Ship', 'Berth Date', 'Day#', 'Day', 'Port', 'Rank', 'Port Name', 'Voyage', 'Duration (Days)', 'Arrive', 'Depart', 'Tender', 'Content Deadline (-14d)', 'TESS Lockout (-7d)', 'Notes 1', 'Notes 2', 'Status'];
+      const csvRows = [headers.join(',')];
+
+      rfFilteredResults.forEach((r, idx) => {
+        const arriveFmt = typeof normalizeTime === 'function' ? (normalizeTime(r.arrive) || r.arrive) : r.arrive;
+        const departFmt = typeof normalizeTime === 'function' ? (normalizeTime(r.depart) || r.depart) : r.depart;
+        const isStruck = rfStruckKeys.has(r.key);
+
+        const row = [
+          idx + 1,
+          `"${r.ship}"`,
+          `"${r.berthDate}"`,
+          r.dayNumber,
+          `"${r.day}"`,
+          `"${r.port}"`,
+          `"${r.rank}"`,
+          `"${r.portName.replace(/"/g, '""')}"`,
+          `"${r.voyageDisplay}"`,
+          r.durationDays === '-' ? '' : r.durationDays,
+          `"${arriveFmt}"`,
+          `"${departFmt}"`,
+          `"${r.tender}"`,
+          `"${r.contentDeadline}"`,
+          `"${r.tessLockout}"`,
+          `"${(r.notes1 || '').replace(/"/g, '""')}"`,
+          `"${(r.notes2 || '').replace(/"/g, '""')}"`,
+          isStruck ? '"Checked"' : '"Unchecked"'
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const shipName = (document.getElementById('rfShipSelect') ? document.getElementById('rfShipSelect').value : 'Ship').replace(/[^a-zA-Z0-9]/g, '_');
+      a.href = url;
+      a.download = `${shipName}_Schedule_Voyages_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function resetRankFilter() {
+      rfFilteredResults = [];
+      const tbody = document.getElementById('rankFilterTableBody');
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="17" class="empty-state" style="padding: 40px 20px; text-align: center; color: var(--text-muted);"><i class="fa-solid fa-file-excel" style="font-size: 2rem; color: #94a3b8; margin-bottom: 10px; display: block;"></i>Please select an Excel file above and click <b>Refresh</b>.</td></tr>`;
+      }
+      const statusEl = document.getElementById('rfStatusMsg');
+      if (statusEl) statusEl.style.display = 'none';
+      const countEl = document.getElementById('rfTotalCount');
+      if (countEl) countEl.textContent = '0';
+      const alertEl = document.getElementById('rfAlertCount');
+      if (alertEl) alertEl.textContent = '0';
+      const expBtn = document.getElementById('rfExportBtn');
+      if (expBtn) expBtn.disabled = true;
+    }
+
+</script>
 
 </body>
 

@@ -1048,11 +1048,18 @@
   <main class="app-main">
     <div class="app-body-scroll">
       <div class="container tab-view active-view" id="view-comparison">
-        <header>
-          <h1>AEM & TESS Activity Comparison</h1>
-          <p class="subtitle">Base comparison: AEM daily CSV files matched against TESS master Excel (Activities sheet -
-            Export for DMs)
-          </p>
+        <header style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h1>AEM & TESS Activity Comparison</h1>
+            <p class="subtitle">Base comparison: AEM daily CSV files matched against TESS master Excel (Activities sheet -
+              Export for DMs)
+            </p>
+          </div>
+          <div style="text-align: right; flex-shrink: 0;">
+            <p style="font-size: 0.85rem; font-weight: 700; color: #334155; margin: 0;">Glen Rajadurai</p>
+            <a href="mailto:glenrajadurai24@gmail.com"
+              style="font-size: 0.75rem; color: #4f46e5; text-decoration: none;">glenrajadurai24@gmail.com</a>
+          </div>
         </header>
 
         <!-- Toolbar & Filters -->
@@ -1719,15 +1726,20 @@
       <!-- TESS FILE VIEW (Raw Uploaded Data in Ascending Order of Time)           -->
       <!-- ======================================================================= -->
       <div class="container tab-view" id="view-tessfile" style="display: none;">
-        <header style="display: flex; justify-content: space-between; align-items: center;">
+        <header style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
           <div>
             <h1>TESS File Data</h1>
             <p class="subtitle">Uploaded TESS master activities displayed in ascending order of start time</p>
           </div>
-          <div style="display: flex; gap: 10px; align-items: center;">
+          <div style="display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
             <button class="btn btn-secondary" onclick="clearAllColumnFilters('tessTable')"
               style="font-size: 0.75rem; padding: 4px 10px;">Reset Filters</button>
             <div class="stat-pill pill-all">Records: <b id="tessFileCount">0</b></div>
+            <div style="text-align: right; border-left: 1px solid #cbd5e1; padding-left: 12px;">
+              <p style="font-size: 0.85rem; font-weight: 700; color: #334155; margin: 0;">Glen Rajadurai</p>
+              <a href="mailto:glenrajadurai24@gmail.com"
+                style="font-size: 0.75rem; color: #4f46e5; text-decoration: none;">glenrajadurai24@gmail.com</a>
+            </div>
           </div>
         </header>
         <div class="table-container">
@@ -1787,6 +1799,11 @@
                 style="font-size: 0.8rem; padding: 5px 14px;" disabled>
                 <i class="fa-solid fa-file-excel" style="color: #107c41;"></i> Export CSV
               </button>
+              <div style="text-align: right; border-left: 1px solid #cbd5e1; padding-left: 12px;">
+                <p style="font-size: 0.85rem; font-weight: 700; color: #334155; margin: 0;">Glen Rajadurai</p>
+                <a href="mailto:glenrajadurai24@gmail.com"
+                  style="font-size: 0.75rem; color: #4f46e5; text-decoration: none;">glenrajadurai24@gmail.com</a>
+              </div>
             </div>
           </header>
 
